@@ -268,11 +268,16 @@ Avoid downloading media repeatedly when a safe and policy-compliant cached copy 
 ### Language target
 
 Racket is the project's standard implementation target (confirmed by the user
-on 2026-10-07). The current Python implementation is an explicitly accepted
-prototype, not a permanent language decision. Keep transport, authentication,
-media validation, and X API translation separate so their contracts and tests
-can guide a Racket implementation. Evaluate Racket support against the working
-prototype before deciding which adapters, if any, should remain in Python.
+on 2026-10-07). The accepted Python prototype was deprecated and removed after
+native runtime feature and contract verification. Python remains only as an
+independent MCP client for tests, not as a production dependency.
+
+Keep transport, authentication, media validation, and X API translation separate.
+The application is in `racket/`; generic components in `racket/lib/` contain no X
+policy. See `docs/racket.md` for boundaries and codec dependencies. Preserve the
+synthetic prototype contracts and cross-language MCP tests when changing behavior.
+Run `raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt` and
+the Python unittest suite. Native OAuth tests use localhost only, never live X.
 
 Do not introduce a heavyweight database by reflex.
 

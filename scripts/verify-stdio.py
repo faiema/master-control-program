@@ -6,7 +6,6 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import sys
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -15,8 +14,8 @@ from mcp.client.stdio import stdio_client
 async def verify(url, output):
     environment = dict(os.environ, MCP_X_ENABLE_WRITES="0")
     parameters = StdioServerParameters(
-        command=sys.executable,
-        args=["-m", "master_control_program.server"],
+        command="racket",
+        args=[str(Path(__file__).resolve().parents[1] / "racket/server.rkt")],
         env=environment,
     )
     async with stdio_client(parameters) as (reader, writer):

@@ -2,51 +2,42 @@
 
 ## Observed on 2026-10-07
 
-- Official X-MCP account and recent-post reads succeeded. Attachments contained
-  URLs, dimensions, and media keys, but no image content.
-- No image-byte fetch, upload, or public post creation tool was exposed.
-- All 22 tests passed with zero skips using MCP 1.30.0 and Pillow 12.3.0.
-  This includes a separate stdio process, tool discovery, and validation errors.
-- Dependencies installed and locked in `uv.lock`; Git is initialized.
-- Live stdio fetch returned a JPEG image block: 1200 × 900, 279708 bytes.
-  The client decoded it and the local image viewer delivered it to the vision
-  model: a fairy and a gremlin beside monitors describing a broken image pipeline.
-  This verifies the local path, not automatic rendering in hosted ChatGPT.
-- The CDN rejected the default urllib User-Agent with HTTP 403. Explicitly
-  identifying the application as `master-control-program/0.1` succeeded.
-- The supplied URL returned a smaller rendition than the dimensions in X metadata;
-  no local resizing occurred. Use an original-size URL when required.
-- Sandbox subprocess execution stalled; the complete offline suite and live
-  check succeeded outside the sandbox.
-- Racket is installed and is the standard target; Python is the accepted prototype.
+- The official X MCP returned account/post metadata and image URLs but exposed no
+  image-byte retrieval, upload, or post creation tool when last checked.
+- **33 Racket test cases and 3 independent Python MCP client tests pass**, with no
+  skips. Native tests cover media formats and failures, URL validation, HTTP/API
+  errors, write gating, request construction, token storage, OAuth PKCE and actual
+  local callbacks, and generic MCP transport behavior.
+- The production server and OAuth command no longer use Python. Pillow and the
+  Python server entrypoints have been removed from the environment and source.
+- Cross-language tests exercise a real Racket stdio process through MCP SDK 1.30.0.
+  Fixture results match the original Python prototype's saved contracts.
+- Live native Racket HTTPS and image validation returned a 1200 × 900 JPEG,
+  279708 bytes, with SHA-256
+  `503ca2a2783fcd5195fec87e181e3dad517b556b5bc61cae7451edc06e16765d`.
+  Those bytes match the previously visually inspected image of a fairy and a
+  gremlin beside monitors describing a failed image pipeline. This verifies
+  the local path, not hosted ChatGPT rendering.
+- The supplied URL's rendition was smaller than X metadata reported; no local
+  resizing occurred. Use an original-size URL when required.
+- An explicit application User-Agent resolved the CDN rejection observed with
+  Python urllib's default header. The Racket HTTP client identifies the same app.
+- Native unit and MCP client tests ran inside the sandbox. Local TCP callback
+  tests and live network checks required execution outside it.
+- No real tokens were created, and no images were uploaded or posts published.
 
-## Acceptance without live writes
+## Repeat offline checks
 
-1. Install dependencies, generate a lockfile, and run all tests with zero skips.
-2. Connect a real MCP client over stdio and inspect the tool list.
-3. Pass an image URL from the official X MCP to `fetch_x_media`.
-4. Confirm the response contains an image block with unchanged bytes and correct
-   MIME type. Confirm a vision model can describe the actual image. A URL or a
-   synthetic content-dictionary test alone does not satisfy this requirement.
-5. Enable writes and inspect annotations without invoking the write tools.
+```sh
+raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt
+uv sync --locked
+.venv/bin/python -m unittest discover -s tests -v
+```
 
-## Live write acceptance
-
-Only after an explicit user publishing request: configure the developer app,
-complete OAuth, and verify the intended account. Upload the chosen image once,
-retain its media ID and expiry, publish the chosen text once, and verify through
-the official X MCP. Check X before retrying any ambiguous error. Do not delete the
-post without a user request. Record non-secret observations only.
-
-## Remaining work
-
-- Verify OAuth and an explicitly requested live upload/post.
-- Evaluate Racket MCP/HTTP support and port the prototype's contracts.
-- Design authenticated remote transport and client-native attachment handoff
-  for ChatGPT web. Local stdio plus base64 is not that finished workflow.
-- Add token refresh only when needed. No offline scope is currently requested.
-- Async processing, GIF/video, post/media-key lookup, archives, and persistent
-  caches are intentionally absent. Verify X retention terms before adding storage.
+The OAuth tests use temporary owner-only files and localhost connections only.
+The test-only stdio entrypoint injects a fixture transport. The production server
+has no fixture-mode environment switch. Runtime validation uses native codecs;
+Python is an optional independent test client.
 
 ## Repeat the read-only live check
 
@@ -55,7 +46,27 @@ post without a user request. Record non-secret observations only.
 ```
 
 Use a direct image URL returned by the official X MCP and a new temporary output
-path. The script forces writes off, checks the tool list and image block, and
-writes the decoded bytes for visual inspection. It does not create a persistent
-cache. Inspect the output with a vision-capable client; passing assertions alone
-does not establish visual rendering. Ordinary tests never download live media.
+path. The script forces writes off, checks the tool list and image block, then
+writes the decoded bytes for visual inspection. It does not establish a persistent
+cache. Inspect the result with a vision-capable client; assertions about a URL or
+metadata alone do not establish image delivery.
+
+## Live write acceptance
+
+Only after an explicit publishing request: configure the developer app, run
+`racket racket/login.rkt`, complete authorization, and verify the intended account.
+Upload the chosen image once, retain its media ID and expiry, publish the intended
+text once, and verify through the official X MCP. Check X before retrying any
+ambiguous error. Do not delete the post without a user request. Record only
+non-secret observations.
+
+## Remaining work
+
+- Verify live OAuth and an explicitly requested upload/post.
+- Design authenticated remote transport and client-native image handoff for hosted
+  ChatGPT. Local stdio plus base64 is not the finished web workflow.
+- Add token refresh only when needed; no offline scope is requested now.
+- Async processing, GIF/video, post/media-key lookup, archives, and persistent
+  caches remain absent. Verify X retention terms before adding storage.
+- Reuse the isolated library modules in a concrete second project before creating
+  a separately distributed package or general extension mechanism.

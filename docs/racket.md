@@ -1,0 +1,100 @@
+# Racket implementation and reusable components
+
+The application now runs without Python. The server, HTTP requests, image worker,
+OAuth login, token storage, and X request translation are Racket modules. Native
+image codecs are accessed through Racket's draw library and a small libwebp FFI
+binding. Python remains only as an independent MCP client in development checks.
+
+## Application modules
+
+| Module | Responsibility |
+| --- | --- |
+| `racket/server.rkt` | X tool schemas, annotations, validation, and dispatch |
+| `racket/http.rkt` | Official-host HTTPS, verified TLS, response bounds, safe errors, no retries/redirects |
+| `racket/media.rkt` | CDN URL allowlist, base64, provenance, unchanged image content |
+| `racket/image-worker.rkt` | Credential-free native image validation in a bounded subprocess |
+| `racket/auth.rkt` | X scopes, token exchange, token loading and expiration |
+| `racket/login.rkt` | Local authorization flow and terminal interaction |
+| `racket/x-api.rkt` | Independent write gate, upload/post request and response translation |
+| `racket/common.rkt` | Application-safe exceptions and deadline/JSON adapters |
+
+Racket's standard [HTTP client](https://docs.racket-lang.org/net/http-client.html)
+uses an explicitly [secure TLS context](https://docs.racket-lang.org/openssl/index.html)
+with certificate and hostname verification. Networking connects directly; proxy
+support has not been implemented or tested.
+
+## Reusable modules
+
+The `racket/lib/` modules contain no X endpoints, tool names, scopes, or account
+logic. They remain source modules in this repository, with no separate package
+release or speculative extension system.
+
+| Module | Public interface and purpose |
+| --- | --- |
+| `mcp-stdio.rkt` | `serve-tools` accepts tool-listing and invocation functions plus server metadata; `rpc-error` raises a safe protocol error |
+| `deadline.rkt` | `call-with-deadline` runs a thunk under a child custodian and calls a supplied timeout handler; resources are closed on success as well as failure |
+| `json.rkt` | `parse-json` accepts exactly one JSON value and rejects trailing data |
+| `pkce.rkt` | `make-pkce`, `random-state`, and `base64url`, using cryptographic randomness and S256 |
+| `oauth-loopback.rkt` | Bounded localhost authorization-code callback, state validation, duplicate rejection, denial and timeout handling |
+| `secret-file.rkt` | `write-private-json` atomically replaces a mode-0600 JSON file without changing permissions of existing parent directories |
+| `image.rkt` | `inspect-static-image` takes byte/pixel limits and returns an `image-info` record without changing the input bytes |
+| `webp.rkt` | Small libwebp decoding binding, used by the image validator |
+
+`serve-tools` supports the tools-only subset of
+[MCP 2025-11-25 stdio](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports)
+and its [lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle).
+The invocation function remains responsible for tool argument validation,
+authorization, and constructing MCP results. This separation allows another
+project to reuse the transport without importing the X application. Tests run
+it with an unrelated server identity and handler.
+
+The generic image library can be used directly for trusted data. This application
+runs it in a separate process for untrusted media: a parent custodian can kill a
+stalled native codec even if the codec is executing C code. The worker inherits
+an empty environment, receives only bounded image bytes, and returns JSON
+metadata or a safe error. It has no HTTP or credential operations.
+
+## Image validation
+
+PNG chunk boundaries, CRCs, animation chunks, and dimensions are inspected before
+native decoding. JPEG frame dimensions are checked before pixel allocation, and
+an end marker is required. WebP dimensions and animation status come from
+[libwebp's documented decoder API](https://developers.google.com/speed/webp/docs/api).
+All three formats are actually decoded, then their original bytes are returned.
+Progressive/grayscale/CMYK JPEG, PNG alpha/palette modes, and lossless WebP have
+synthetic regression coverage.
+
+The WebP binding uses the ABI-checked export behind `WebPGetFeatures`, with the
+structure and ABI version from `webp/decode.h` (0x0210). libwebp is required for
+WebP images. Racket `draw-lib` and its Cairo, JPEG, and PNG dependencies handle
+the other formats. This setup has been exercised on Linux with Racket 9.3;
+other platforms have not been verified.
+
+Compared with the Python prototype, native validation performs full pixel
+decoding and conservatively rejects APNG containers even with one frame. It does
+not reproduce lenient acceptance of damaged files by a header-only validator.
+No image transformation is performed.
+
+## Limits and remaining work
+
+- HTTP deadline: 30 seconds; image worker deadline: 15 seconds.
+- Image input: 5 MiB and 40 megapixels; API response body: 1 MiB.
+- MCP input frame: 8 MiB. An oversized frame closes the session after an error.
+- OAuth callback: bound to 127.0.0.1, five-minute overall deadline, five-second
+  per-connection deadline, and 8 KiB request-header limit. Callback responses
+  contain no codes, tokens, or upstream error details.
+- Tool requests are serial. Notifications never invoke tools. Cancellation does
+  not interrupt a running operation; deadlines still apply. Check the account
+  before repeating an uncertain write.
+- Writes are hidden unless `MCP_X_ENABLE_WRITES=1`; the API layer separately gates
+  them before credential access or network traffic.
+- No live account authorization or writes have been verified. Tests use mock
+  token responses, synthetic images, and local callback requests only.
+- Hosted transport, practical generated-image handoff, token refresh, asynchronous
+  media processing, and video support remain unimplemented.
+
+The Python runtime and its console entrypoints were removed after native image,
+OAuth, request-construction, and MCP contracts passed. Commit `aaa39e4` retains the
+prototype if historical comparison is needed. `tests/fixtures/contracts.json`
+preserves its synthetic observable results; Python SDK client tests now compare
+against those records without importing a Python server or Pillow.

@@ -1,17 +1,9 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
 [project]
 name = "master-control-program"
 version = "0.1.0"
-description = "Let the robot see the picture, and post it when explicitly asked."
+description = "Independent MCP interoperability checks for the Racket server."
 requires-python = ">=3.11"
-dependencies = ["mcp>=1.28,<2", "Pillow>=11,<13"]
+dependencies = ["mcp>=1.28,<2"]
 
-[project.scripts]
-master-control-program = "master_control_program.server:main"
-mcp-x-login = "master_control_program.auth:main"
-
-[tool.hatch.build.targets.wheel]
-packages = ["master_control_program"]
+[tool.uv]
+package = false

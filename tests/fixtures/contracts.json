@@ -1,0 +1,25 @@
+{
+  "fetch_metadata": {
+    "mime_type": "image/png",
+    "width": 3,
+    "height": 2,
+    "size_bytes": 73,
+    "source_url": "https://pbs.twimg.com/media/synthetic.png",
+    "source_post_id": "123",
+    "media_key": "3_456",
+    "provenance": "URL supplied by caller; post ID and media key are caller-provided"
+  },
+  "upload_result": {
+    "media_id": "123",
+    "media_key": null,
+    "expires_after_secs": 86400,
+    "mime_type": "image/png",
+    "width": 3,
+    "height": 2,
+    "size_bytes": 73
+  },
+  "post_result": {
+    "id": "789",
+    "url": "https://x.com/i/status/789"
+  }
+}
