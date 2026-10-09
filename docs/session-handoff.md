@@ -15,6 +15,15 @@ coverage of HTTP and OAuth failures, timing, redaction, and partial errors. Comp
 hosted ChatGPT publishing test. Do not publish test posts without explicit
 content authorization. Publishing the repository/tag is a separate action.
 
+## Repository and CI
+
+The public repository is `faiema/master-control-program`. Git SSH must use host
+`github-faiema`; origin is `git@github-faiema:faiema/master-control-program.git`.
+Local `master` tracks `origin/main`; use `git push origin HEAD:main` explicitly.
+The first GitHub Actions run (37883581680, commit `9f50348`) passed both tests
+and full-history secret scanning on Ubuntu 24.04/Racket 9.3/Python 3.13.
+Source publication is complete; no release tag has been created.
+
 ## Runtime and verification
 
 - Production runtime and OAuth login are native Racket. Python is only an

@@ -18,7 +18,7 @@ to this repository's original source, documentation, and synthetic fixtures.
 - [x] Add CI with pinned actions, locked test dependencies, and a redacted secret scan.
 - [x] Review the complete release diff, including previously untracked source files.
 - [x] Run checks from a clean release snapshot and run the full-history secret scan.
-- [ ] Observe the first successful GitHub CI run; local tests do not verify hosted CI.
+- [x] Observe the first successful GitHub CI run: [tests and secret scan passed](https://github.com/faiema/master-control-program/actions/runs/37883581680) for `9f50348`.
 - [x] Improve X error reporting with bounded, selected safe fields and retry timing.
       Keep tokens, signed URLs, and arbitrary response bodies out of errors.
 - [ ] After release preparation, verify an explicitly authorized image post from
@@ -46,7 +46,8 @@ credentials and personal output, passed 40 Racket cases and 4 independent MCP
 client cases with zero skips. Gitleaks 8.24.2 found no leaks in either the two
 existing commits or the exported release files. The binary matched the upstream
 SHA-256 checksum. This is a scanner result, not a guarantee that all possible
-secrets are detectable. GitHub CI itself has not yet run. The subsequent token-refresh changes passed
+secrets are detectable. GitHub CI had not yet run at that initial review; the first hosted run is now
+verified above. The subsequent token-refresh changes passed
 42 Racket tests and 5 Python tests with zero skips. Error-reporting regression
 coverage subsequently expanded the suite to 46 Racket tests and 5 Python tests.
 

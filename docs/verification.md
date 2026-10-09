@@ -165,3 +165,13 @@ The implementation follows the [MCP cancellation specification](https://modelcon
 accepted cancellation suppresses the response; requests past an irreversible
 boundary cannot be cancelled and may still return their outcome. Client reasons
 are never logged. Hosted ChatGPT cancellation UI behavior remains unverified.
+
+## First hosted CI run — 2026-10-08 (2026-10-09 UTC)
+
+Source history was pushed to the public `faiema/master-control-program` repository
+through SSH host `github-faiema`, with local `master` tracking remote `main`.
+[GitHub Actions run 37883581680](https://github.com/faiema/master-control-program/actions/runs/37883581680)
+passed both jobs at commit `9f50348`: the full test command on Ubuntu 24.04 with
+Racket 9.3 and Python 3.13, and the redacted complete-history secret scan.
+This verifies the hosted CI environment; it does not verify hosted ChatGPT
+publishing or the deferred systemd deployment. No release tag was created.

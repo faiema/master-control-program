@@ -153,7 +153,8 @@ bash scripts/check
 ```
 
 This runs both suites and fails on skipped tests or empty Python discovery.
-CI uses the same command on Ubuntu with Racket 9.3. Other Racket versions and
+[Hosted CI](https://github.com/faiema/master-control-program/actions/runs/37883581680)
+passed the same command on Ubuntu 24.04 with Racket 9.3 and Python 3.13. Other Racket versions and
 Windows remain unverified. Both suites are required for development/release
 checks; Python remains optional for users running the server.
 
