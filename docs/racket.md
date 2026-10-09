@@ -10,7 +10,8 @@ binding. Python remains only as an independent MCP client in development checks.
 | Module | Responsibility |
 | --- | --- |
 | `racket/server.rkt` | X tool schemas, annotations, validation, and dispatch |
-| `racket/http.rkt` | Official-host HTTPS, verified TLS, response bounds, safe errors, no retries/redirects |
+| `racket/http.rkt` | Official-host HTTPS, verified TLS, response bounds, no retries/redirects |
+| `racket/x-errors.rkt` | Bounded safe X/OAuth error summaries, operation names, status advice and retry timing |
 | `racket/media.rkt` | CDN URL allowlist, base64, provenance, unchanged image content |
 | `racket/chatgpt-file.rkt` | Opt-in ChatGPT file references, exact download-host allowlist, bounded credential-free downloads |
 | `racket/image-worker.rkt` | Native image validation in a bounded subprocess with an empty environment |
@@ -102,8 +103,8 @@ No image transformation is performed.
   synthetic images, and local callback requests only.
 - Secure MCP Tunnel and file-reference tools passed local tests and user-confirmed
   live ChatGPT image checks; see [ChatGPT setup](chatgpt.md). The tunnel currently
-  runs as a local test process. Automatic token refresh has synthetic coverage;
-  the new offline-access grant is saved, but live verification remains pending. Asynchronous
+  runs as a local test process. Automatic token refresh has synthetic coverage,
+  plus a successful live refresh/rotation and restarted-runtime credential check. Asynchronous
   processing and video support remain unimplemented.
 
 See the [release checklist and backlog](release.md) for prioritized follow-up.

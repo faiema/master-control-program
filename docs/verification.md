@@ -2,7 +2,7 @@
 
 ## Current summary — 2026-10-08
 
-The latest checks passed 42 Racket cases and 5 Python tests (including independent
+The latest checks passed 46 Racket cases and 5 Python tests (including independent
 MCP client tests and cross-process token refresh);
 all passed, with no skips. Live OAuth, upload, posting, and an image reply have
 succeeded from local clients. Hosted ChatGPT image retrieval/inspection is
@@ -115,7 +115,38 @@ non-secret observations.
 ## Remaining work
 
 Tracked in [release checklist and backlog](release.md). Release preparation comes
-before the next hosted ChatGPT publishing test; improved safe X error reporting
-is required before launch. Token refresh now has synthetic regression coverage;
-the new offline-access grant is saved. Runtime setup and live refresh verification remain.
+before the next hosted ChatGPT publishing test; safe X error reporting is now
+implemented and covered by synthetic regression tests. Token refresh now has synthetic regression coverage
+and successful live rotation, persistence, and runtime credential checks.
 Cancellation remains follow-up work. Decoder sandboxing is deferred while access stays private and single-owner.
+
+## Live refresh acceptance — 2026-10-08
+
+Using the existing confidential-client grant and local credentials, the production
+refresh function was invoked early under the production file lock. X accepted it
+and issued a different refresh token. The replacement record was atomically saved,
+read back, and accepted by the normal access-token provider. The saved expiry was
+not modified to induce the test. This verifies live refresh and persistence;
+automatic expiry selection and concurrent access are covered by synthetic tests.
+No upload or post was made. No credential values appeared in output.
+
+The tunnel was stopped and restarted using a private local launcher sourcing a
+mode-0600 client credential file. Status reported healthy and ready. Inspection
+of the Racket child's environment confirmed client-secret presence, the expected
+token-file path, and no direct access-token override. Secrets and the local
+launcher remain ignored by Git. The local login script's permissions were also
+restricted to 0600.
+
+## Safe X error reporting — 2026-10-08
+
+Synthetic tests cover HTTP status and operation context, recognized X problem
+and OAuth error types, numeric error codes, retry timing, malformed/oversized
+bodies, partial errors, and final MCP error content. Sentinel secrets in upstream
+titles, details, messages, URLs, and headers must not reach tool results. Tests
+also verify a failing write or token exchange is attempted only once. No live
+failure was induced. See README for intentionally unsupported retry header forms
+and the distinction between timing advice and permission to repeat a write.
+
+Response formats and reset-header semantics were checked against the official
+[X error reference](https://docs.x.com/x-api/fundamentals/response-codes-and-errors)
+and [rate-limit documentation](https://docs.x.com/x-api/fundamentals/rate-limits).

@@ -101,15 +101,14 @@
         headers))
   (define-values (_ raw)
     (with-handlers
-        ([exn:fail?
+        ([exn:fail:x-http?
           (lambda (e)
-            ;; Never propagate response bodies or credential-bearing exceptions.
-            (define rejected?
-              (and (exn:fail:bridge? e) (regexp-match? #rx"^HTTP (400|401|403):" (exn-message e))))
+            (bridge-error (string-append (exn-message e)
+                                        " Token authorization failed; no upload or post was sent. If credentials were revoked, run racket racket/login.rkt.")))]
+         [exn:fail?
+          (lambda (_)
             (bridge-error
-             (if rejected?
-                 "Authentication: X rejected token authorization; check app credentials and run racket racket/login.rkt again. No upload or post was sent."
-                 "Authentication: token request failed; check connectivity or rate limits and retry later. If authorization no longer works, run racket racket/login.rkt. No upload or post was sent.")))])
+             "Authentication: token request failed; check connectivity and retry later. If authorization no longer works, run racket racket/login.rkt. No upload or post was sent."))])
       ((current-transport) "https://api.x.com/2/oauth2/token" #:method "POST" #:headers authorized-headers
                            #:body (string->bytes/utf-8 (alist->form-urlencoded form)) #:limit (* 64 1024))))
   (with-handlers ([exn:fail? (lambda (_) (bridge-error "Authentication: token exchange returned invalid data or missing scopes; check app settings."))])

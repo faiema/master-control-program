@@ -4,9 +4,11 @@
 
 The user completed X authorization. The saved token was valid during the posting
 tests. Automatic refresh is now implemented, and the user completed a new
-login with `offline.access`. Restart the runtime to load the new code;
-confidential apps also need `X_CLIENT_SECRET` in its environment. Live refresh
-has not yet been verified. The tunnel was switched to the
+login with `offline.access`. Live refresh and rotation succeeded, and the
+runtime was restarted through ignored `.secrets/serve-chatgpt`, which loads
+`X_CLIENT_SECRET` from private `.secrets/x-client.env` before executing Racket.
+The child environment and healthy/ready status were verified without exposing
+credentials. The tunnel was switched to the
 normal server with `MCP_X_ENABLE_WRITES=1`,
 `MCP_CHATGPT_FILES=1`, the verified exact storage hostname below, and an absolute
 `MCP_X_TOKEN_FILE` path. It no longer uses the read-only test launcher.

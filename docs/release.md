@@ -19,7 +19,7 @@ to this repository's original source, documentation, and synthetic fixtures.
 - [x] Review the complete release diff, including previously untracked source files.
 - [x] Run checks from a clean release snapshot and run the full-history secret scan.
 - [ ] Observe the first successful GitHub CI run; local tests do not verify hosted CI.
-- [ ] Improve X error reporting with bounded, selected safe fields and retry timing.
+- [x] Improve X error reporting with bounded, selected safe fields and retry timing.
       Keep tokens, signed URLs, and arbitrary response bodies out of errors.
 - [ ] After release preparation, verify an explicitly authorized image post from
       hosted ChatGPT through the tunnel, and verify an ordinary attached image.
@@ -47,7 +47,8 @@ client cases with zero skips. Gitleaks 8.24.2 found no leaks in either the two
 existing commits or the exported release files. The binary matched the upstream
 SHA-256 checksum. This is a scanner result, not a guarantee that all possible
 secrets are detectable. GitHub CI itself has not yet run. The subsequent token-refresh changes passed
-42 Racket tests and 5 Python tests with zero skips.
+42 Racket tests and 5 Python tests with zero skips. Error-reporting regression
+coverage subsequently expanded the suite to 46 Racket tests and 5 Python tests.
 
 Before committing, inspect `git status --short` and the staged diff. Include
 `racket/chatgpt-file.rkt`, its tests, the readonly launcher, new documentation,
@@ -55,7 +56,7 @@ the license, and CI. Do not stage `.secrets/`, local output, or machine-specific
 profiles. A source archive contains source and fixtures, not installed runtimes
 or third-party dependencies; those retain their own licenses.
 
-## Token refresh — implemented, new grant saved; live verification pending
+## Token refresh — implemented and live-verified
 
 Automatic refresh now requests `offline.access`, stores rotating tokens atomically,
 and locks the shared token file across processes. Synthetic tests cover expiry,
@@ -63,10 +64,17 @@ rotation, concurrent callers, process restart, rejected authorization, malformed
 responses, and network failure. Refresh happens before writes, with no automatic
 retry of an uncertain write. See README authentication setup for the one-time
 reauthorization and runtime restart. On 2026-10-08 the user completed the new
-login; metadata inspection confirmed offline.access, a refresh token, a saved
-client ID, and mode 0600. This is a confidential-client grant: the running
-server needs X_CLIENT_SECRET. That environment and a successful live refresh
-have not yet been verified; this agent session has no client secret configured.
+login. A deliberately early live refresh then succeeded through the production
+refresh function under its file lock: X rotated the refresh token, replacement
+tokens were saved and read back, and the normal token provider accepted them.
+No expiry was altered and no upload/post endpoint was called. Synthetic tests
+cover the automatic expiry trigger; this live check did not wait two hours.
+
+The local tunnel was restarted with an ignored private launcher that loads
+`.secrets/x-client.env` (mode 0600). Its Racket child was checked for the presence
+of `X_CLIENT_SECRET`, the correct token-file path, and absence of `X_ACCESS_TOKEN`,
+without printing credential values. Runtime status reported healthy and ready.
+This is still a local test deployment, not a boot-persistent service.
 
 ## Follow-up work
 

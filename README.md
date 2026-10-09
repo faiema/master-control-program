@@ -19,7 +19,7 @@ text/media/reply posting, and local OAuth 2.0 PKCE login. Writes are hidden and
 disabled by default. Live OAuth, image upload, a post, and an image reply succeeded
 from local clients on 2026-10-08. Hosted ChatGPT publishing remains unverified.
 
-Verified on 2026-10-08: **42 Racket tests and 5 Python tests pass,
+Verified on 2026-10-08: **46 Racket tests and 5 Python tests pass,
 with zero skips**. A live X image passed through native Racket HTTPS, native
 image validation, and stdio MCP with identical bytes to the original prototype.
 The returned image was inspected visually during verification. Ordinary OAuth
@@ -33,7 +33,7 @@ read-only tools, and the user confirmed it sees and describes a real X image
 returned by `fetch_x_media`. The user also confirmed an accessible generated
 image passes through `inspect_chatgpt_image` and returns visible image content.
 The tunnel is currently a local test runtime, not a boot-persistent deployment.
-The expanded local suite passes 42 Racket cases and 5 Python tests.
+The expanded local suite passes 46 Racket cases and 5 Python tests.
 See the [release checklist and backlog](docs/release.md) for launch gates.
 
 The connected official X MCP exposed reads and media URLs but no image-byte
@@ -163,7 +163,18 @@ contracts are preserved in synthetic fixtures and cross-language tests.
 See [Racket architecture and reusable modules](docs/racket.md) and
 [verification details](docs/verification.md). No write automatically retries.
 After a timeout, cancellation, or malformed response, check X before resubmitting:
-a write may already have succeeded. Arbitrary upstream error bodies are suppressed.
+a write may already have succeeded. Errors identify the operation and HTTP status,
+translate recognized X problem types and OAuth error names, and retain bounded
+numeric X error codes. Free-form upstream titles, details, messages, URLs, and
+request IDs are suppressed. Error bodies are read up to 16 KiB; malformed or
+oversized bodies still yield status-based advice. Up to four nested errors are
+summarized, including partial errors in successful HTTP responses.
+
+For rate limits and service failures, validated integer `Retry-After` seconds and
+`x-rate-limit-reset` timestamps provide a suggested wait (the longer valid value).
+Invalid, past reset, or more-than-seven-day values are omitted. HTTP-date
+`Retry-After` values are not interpreted. Timing is advice, never an automatic
+retry; usage caps may require credits or account changes instead of waiting.
 
 For hosted web clients, use the [Secure MCP Tunnel setup](docs/chatgpt.md).
 Do not expose this local server through an unauthenticated HTTP wrapper.

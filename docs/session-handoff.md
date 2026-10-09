@@ -7,10 +7,11 @@ X account per instance. The user selected GNU Affero GPL; the release uses
 AGPL-3.0-only. Shared public hosting is outside the release scope. Follow the
 [release checklist](release.md), which owns the current TODOs and launch gates.
 
-Token refresh is implemented with synthetic tests; the new offline-access grant
-is saved. Runtime credential setup and live refresh verification remain pending. The user accepted cancellation as a TODO, deferred stronger
-decoder isolation while access remains private, and requires improved safe X
-error reporting before launch. Complete release preparation before the next
+Token refresh is implemented and live-verified; replacement tokens are saved
+and the restarted tunnel has its confidential-client credentials. The user accepted cancellation as a TODO, deferred stronger
+decoder isolation while access remains private, and required improved safe X
+error reporting before launch; that implementation is now complete with synthetic
+coverage of HTTP and OAuth failures, timing, redaction, and partial errors. Complete release preparation before the next
 hosted ChatGPT publishing test. Do not publish test posts without explicit
 content authorization. Publishing the repository/tag is a separate action.
 
@@ -18,7 +19,7 @@ content authorization. Publishing the repository/tag is a separate action.
 
 - Production runtime and OAuth login are native Racket. Python is only an
   independent test client. Do not restart the completed language migration.
-- Local Linux/Racket 9.3 checks pass: 42 Racket cases and 5 Python
+- Local Linux/Racket 9.3 checks pass: 46 Racket cases and 5 Python
   cases, zero skips. Run `uv sync --locked` then `bash scripts/check`.
 - ChatGPT discovered read tools through Secure MCP Tunnel after the repeated
   initialization fix, and the user confirmed visual inspection of both an X
@@ -38,14 +39,15 @@ The managed alias is `master-control-program`. Use the client's `runtimes status
 to discover current health and UI endpoints rather than relying on old ports.
 Do not print full runtime logs or signed image URLs.
 
-The current setup launches the normal `racket/server.rkt`, with writes and
+The current setup uses ignored `.secrets/serve-chatgpt` to load the private
+`.secrets/x-client.env` and launch `racket/server.rkt`, with writes and
 ChatGPT files enabled, an absolute token-file path, and `X_ACCESS_TOKEN` unset.
 Only the exact observed image-storage host is allowed. Preserve
 `MCP_STDIO_SEND_INITIALIZED_NOTIFICATION=true` when restarting the tunnel. The
 readonly launcher intentionally forces writes off and is not the posting entrypoint.
 The user completed the new offline-access login; the saved confidential-client
-grant includes a refresh token. Runtime restart and availability of X_CLIENT_SECRET
-in the server environment still need verification. Neither old health reports nor
+grant includes a refresh token. Live refresh and rotation succeeded, and the restarted Racket child has
+X_CLIENT_SECRET available; health and readiness were verified. Neither old health reports nor
 past successful posts establish that credentials are still valid.
 
 The user proposed an always-on Debian server as the eventual deployment target.

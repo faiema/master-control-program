@@ -3,6 +3,7 @@
 
 (require json net/base64 rackunit racket/file racket/list racket/port racket/runtime-path
          "auth.rkt" "common.rkt" "http.rkt" "media.rkt" "server.rkt" "x-api.rkt"
+         "x-errors.rkt"
          (prefix-in codec: "lib/image.rkt"))
 
 ;; Synthetic 3x2 red PNG, also used by the Python contract tests.
@@ -112,6 +113,60 @@
       (check-exn (regexp (number->string code))
                  (lambda () (read-response (string->bytes/utf-8 (format "HTTP/1.1 ~a secret" code)) '() (open-input-bytes #"secret") 10))))
     (check-exn exn:fail:bridge? (lambda () (read-response #"HTTP/1.1 200 OK" '() (open-input-bytes png) 5))))
+
+  (test-case "safe HTTP diagnostics retain codes and timing without echoed secrets"
+    (define body (jsexpr->bytes
+                  (hasheq 'type "https://api.x.com/2/problems/usage-capped"
+                          'title "synthetic-secret" 'detail "Bearer synthetic-secret"
+                          'errors (list (hasheq 'code 88 'message "https://files.test/?sig=synthetic-secret")))))
+    (define failure
+      (with-handlers ([exn:fail:x-http? values])
+        (read-response #"HTTP/1.1 429 synthetic-secret"
+                       '(#"Retry-After: 60" #"X-Request-ID: synthetic-secret")
+                       (open-input-bytes body) 1000 #:operation "X post creation")))
+    (check-equal? (exn:fail:x-http-status failure) 429)
+    (define message (exn-message failure))
+    (for ([part '("X post creation" "Usage cap" "code 88" "60 seconds" "No automatic retry" "check X")])
+      (check-true (regexp-match? (regexp part) message)))
+    (check-false (regexp-match? #rx"synthetic-secret|files.test|Bearer" message))
+    (check-equal? (retry-guidance (hash "retry-after" "10" "x-rate-limit-reset" "1060") 1000)
+                  " Wait at least 60 seconds before considering a retry.")
+    (for ([bad '("-1" "1e3" "9999999999999999" "secret" "10\r\nsecret" "604801")])
+      (check-equal? (retry-guidance (hash "retry-after" bad) 1000) ""))
+    (check-equal? (retry-guidance (hash "x-rate-limit-reset" "900") 1000) ""))
+
+  (test-case "malformed and oversized error bodies preserve HTTP status with bounded reads"
+    (for ([body (list #"not json synthetic-secret" #"[]" #"{} {}"
+                      (make-bytes 20000 65)
+                      #"{\"type\":\"https://api.x.com/2/problems/invalid-request?sig=synthetic-secret\",\"code\":\"synthetic-secret\"}")])
+      (define input (open-input-bytes body))
+      (define failure
+        (with-handlers ([exn:fail:x-http? values])
+          (read-response #"HTTP/1.1 403 Forbidden" '() input 100000 #:operation "X media retrieval" #:write? #f)))
+      (check-equal? (exn:fail:x-http-status failure) 403)
+      (check-true (<= (file-position input) 16385))
+      (check-true (< (string-length (exn-message failure)) 500))
+      (check-false (regexp-match? #rx"synthetic-secret|write may have succeeded" (exn-message failure)))))
+
+  (test-case "MCP returns selected partial errors and HTTP failures without retrying writes"
+    (for ([partial? '(#f #t)])
+      (define calls 0)
+      (parameterize
+          ([current-writes-enabled #t] [current-token-provider (lambda () "synthetic-secret")]
+           [current-transport
+            (lambda (url #:method method #:headers headers #:body body #:limit limit)
+              (set! calls (add1 calls))
+              (define raw #"{\"errors\":[{\"type\":\"https://api.x.com/2/problems/client-forbidden\",\"detail\":\"synthetic-secret\"}]}")
+              (if partial? (values (hash) raw)
+                  (read-response #"HTTP/1.1 503 Failure" '(#"Retry-After: 30")
+                                 (open-input-bytes raw) limit #:operation "X post creation")))])
+        (define result (call-tool "create_x_post" (hasheq 'text "synthetic text")))
+        (check-true (hash-ref result 'isError))
+        (define rendered (jsexpr->string result))
+        (check-true (regexp-match? #rx"App access denied" rendered))
+        (check-true (regexp-match? #rx"No automatic retry" rendered))
+        (check-false (regexp-match? #rx"synthetic-secret" rendered))
+        (check-equal? calls 1))))
 
   (test-case "bounded operations time out and propagate safe errors"
     (check-exn #rx"timeout" (lambda () (call/bounded 0.01 (lambda () (sync never-evt)) "timeout")))

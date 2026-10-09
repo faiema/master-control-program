@@ -68,6 +68,26 @@
         (check-exn (lambda (e) (and (exn:fail:bridge? e) (not (regexp-match? #rx"synthetic-secret" (exn-message e)))))
                    (lambda () (exchange "code" "verifier" "client"))))))
 
+  (test-case "OAuth preserves safe rejection reasons and retry timing"
+    (for ([status '(400 429)])
+      (define calls 0)
+      (parameterize
+          ([current-transport
+            (lambda (url #:method method #:headers headers #:body body #:limit limit)
+              (set! calls (add1 calls))
+              (read-response (string->bytes/utf-8 (format "HTTP/1.1 ~a Error" status))
+                             '(#"Retry-After: 45")
+                             (open-input-bytes #"{\"error\":\"invalid_grant\",\"error_description\":\"synthetic-secret\"}")
+                             limit #:operation "X authentication"))])
+        (define failure (with-handlers ([exn:fail:bridge? values]) (exchange "code" "verifier" "client")))
+        (check-true (exn:fail:bridge? failure))
+        (define message (exn-message failure))
+        (check-true (regexp-match? #rx"invalid_grant" message))
+        (check-true (regexp-match? #rx"no upload or post was sent" message))
+        (check-false (regexp-match? #rx"synthetic-secret" message))
+        (when (= status 429) (check-true (regexp-match? #rx"45 seconds" message)))
+        (check-equal? calls 1))))
+
   (test-case "atomic token storage creates private directory and replaces permissions"
     (define directory (make-temporary-file "mcp-oauth-~a" 'directory "/tmp"))
     (define path (build-path directory "nested" "secrets" "token.json"))
@@ -156,7 +176,9 @@
                   (check-equal? url "https://api.x.com/2/oauth2/token")
                   (check-equal? (hash-ref headers "Authorization") "Basic Y2xpZW50OnN5bnRoZXRpYy1zZWNyZXQ=")
                   (case failure
-                    [(revoked) (bridge-error "HTTP 400: synthetic-secret")]
+                    [(revoked) (read-response #"HTTP/1.1 400 Bad Request" '()
+                                             (open-input-bytes #"{\"error\":\"invalid_grant\",\"error_description\":\"synthetic-secret\"}")
+                                             1000 #:operation "X authentication")]
                     [(network) (error "synthetic-secret old-refresh")]
                     [(malformed) (values (hash) #"not json")]
                     [else (values (hash) (jsexpr->bytes (hasheq 'access_token "new-access" 'expires_in 7200
