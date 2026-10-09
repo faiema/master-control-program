@@ -33,6 +33,7 @@ read-only tools, and the user confirmed it sees and describes a real X image
 returned by `fetch_x_media`. The user also confirmed an accessible generated
 image passes through `inspect_chatgpt_image` and returns visible image content.
 The tunnel is currently a local test runtime, not a boot-persistent deployment.
+A [sample systemd service](docs/deployment.md) is provided for deployment after launch.
 The expanded local suite passes 52 Racket cases and 5 Python tests.
 See the [release checklist and backlog](docs/release.md) for launch gates.
 

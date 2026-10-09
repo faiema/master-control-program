@@ -89,9 +89,11 @@ The current suite has 52 Racket tests and 5 Python tests. Hosted ChatGPT UI
 cancellation behavior has not been separately verified.
 
 ## Follow-up work
-- Durable deployment: install the tunnel outside `/tmp`, use a dedicated service
+
+- Durable deployment (**after launch**, explicitly deferred): install the tunnel outside `/tmp`, use a dedicated service
   account and a systemd unit, and test restart/reboot and credential expiry.
-  No public inbound listener is needed for the private tunnel.
+  No public inbound listener is needed for the private tunnel. A sample
+  [systemd unit and setup notes](deployment.md) are available; nothing is installed.
 - Stronger native-decoder containment: reconsider OS-enforced filesystem,
   network, and resource restrictions if access expands beyond one trusted owner.
   The current subprocess is a crash/timeout boundary, not a security sandbox.

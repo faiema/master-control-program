@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Example only; see docs/deployment.md before installing.
+[Unit]
+Description=Master Control Program private MCP tunnel
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=mcp-x
+Group=mcp-x
+WorkingDirectory=/opt/master-control-program
+EnvironmentFile=/etc/master-control-program/service.env
+Environment=MCP_STDIO_SEND_INITIALIZED_NOTIFICATION=true
+Environment=MCP_X_TOKEN_FILE=/var/lib/master-control-program/x-token.json
+Environment=XDG_STATE_HOME=/var/lib/master-control-program
+Environment=HEALTH_URL_FILE=/run/master-control-program/health.url
+UnsetEnvironment=X_ACCESS_TOKEN
+ExecStart=/usr/local/bin/tunnel-client run --profile master-control-program --profile-dir /etc/master-control-program
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=45s
+KillMode=control-group
+UMask=0077
+StateDirectory=master-control-program
+StateDirectoryMode=0700
+RuntimeDirectory=master-control-program
+RuntimeDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

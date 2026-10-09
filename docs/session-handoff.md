@@ -51,8 +51,10 @@ X_CLIENT_SECRET available; health and readiness were verified. Neither old healt
 past successful posts establish that credentials are still valid.
 
 The user proposed an always-on Debian server as the eventual deployment target.
-It was inspected read-only; nothing was installed. Deployment and any OS upgrade
-are separate work. One service can supervise tunnel-client and its Racket child.
+It was inspected read-only; nothing was installed. Deployment is explicitly deferred until after launch; any OS upgrade is also
+separate work. A sample unit and environment file are in `deploy/systemd/`, with
+setup notes in `docs/deployment.md`. No service was installed. One service can
+supervise tunnel-client and its Racket child.
 
 ## Cancellation behavior
 
