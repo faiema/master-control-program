@@ -1,8 +1,9 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 ;; Test-only entrypoint: production server.rkt has no fixture/network override.
 (require json net/base64 "../racket/common.rkt" "../racket/http.rkt"
-         "../racket/auth.rkt" "../racket/server.rkt" "../racket/x-api.rkt")
+         "../racket/auth.rkt" "../racket/server.rkt" "../racket/x-api.rkt" "../racket/chatgpt-file.rkt")
 (define png (base64-decode #"iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAEElEQVR4nGP8zwAFTDAGAwATKQED8NgHhAAAAABJRU5ErkJggg=="))
 (define (fixture-transport url #:method [method "GET"] #:headers [headers (hash)] #:body [body #f] #:limit limit)
   (cond
@@ -18,6 +19,12 @@
      (values (hash) #"{\"data\":{\"id\":\"789\"}}")]
     [else (error 'fixture "Unexpected URL; test never uses live HTTP")]))
 (parameterize ([current-transport fixture-transport]
+               [current-file-hosts (file-hosts-from-environment)]
+               [current-file-download (lambda (host target)
+                                        (unless (and (equal? host "files.example.test")
+                                                     (equal? target "/image?signature=synthetic-secret"))
+                                          (error 'fixture "Unexpected file URL"))
+                                        (values png "image/png"))]
                [current-token-provider (lambda () "synthetic-token")]
                [current-writes-enabled (equal? (getenv "MCP_X_ENABLE_WRITES") "1")])
   (serve))

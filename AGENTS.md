@@ -277,7 +277,10 @@ The application is in `racket/`; generic components in `racket/lib/` contain no 
 policy. See `docs/racket.md` for boundaries and codec dependencies. Preserve the
 synthetic prototype contracts and cross-language MCP tests when changing behavior.
 Run `raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt` and
-the Python unittest suite. Native OAuth tests use localhost only, never live X.
+`raco test racket/chatgpt-file-tests.rkt` and the Python unittest suite.
+Native OAuth tests use localhost only, never live X. Read `docs/chatgpt.md` before
+changing the tunnel or file-reference path; signed file URLs must stay out of logs
+and results, and file downloads must never receive X credentials.
 
 Do not introduce a heavyweight database by reflex.
 

@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 ;; Process isolation lets the parent enforce a deadline even inside a C codec.
 (require json "lib/image.rkt")

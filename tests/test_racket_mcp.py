@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 """Cross-language contracts through the real Python MCP client; no live network."""
 import asyncio
 import base64
@@ -19,7 +20,7 @@ def png():
 
 @unittest.skipUnless(shutil.which("racket") and importlib.util.find_spec("mcp"), "Racket and MCP SDK required")
 class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
-    async def with_server(self, callback, *, fixture=False, writes=False):
+    async def with_server(self, callback, *, fixture=False, writes=False, files=False):
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
 
@@ -27,7 +28,9 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
             parameters = StdioServerParameters(
                 command="racket",
                 args=[str(ROOT / ("tests/racket-stdio-fixture.rkt" if fixture else "racket/server.rkt"))],
-                env=dict(os.environ, MCP_X_ENABLE_WRITES="1" if writes else "0"),
+                env=dict(os.environ, MCP_X_ENABLE_WRITES="1" if writes else "0",
+                         MCP_CHATGPT_FILES="1" if files else "0",
+                         MCP_CHATGPT_FILE_HOSTS="files.example.test" if files else ""),
             )
             async with stdio_client(parameters) as (reader, writer):
                 async with ClientSession(reader, writer) as session:
@@ -78,3 +81,25 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(json.loads(posted.content[0].text), CONTRACTS["post_result"])
 
         await self.with_server(check, fixture=True, writes=True)
+
+    async def test_chatgpt_file_handoff_and_upload(self):
+        async def check(session):
+            tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+            for name in ["inspect_chatgpt_image", "upload_x_media"]:
+                descriptor = tools[name].model_dump(by_alias=True)
+                self.assertEqual(descriptor["_meta"]["openai/fileParams"], ["file"])
+                schema = tools[name].inputSchema["properties"]["file"]
+                self.assertEqual(set(schema["required"]), {"download_url", "file_id"})
+                self.assertEqual(set(schema["properties"]),
+                                 {"download_url", "file_id", "mime_type", "file_name"})
+            file = {"download_url": "https://files.example.test/image?signature=synthetic-secret",
+                    "file_id": "synthetic-file", "mime_type": "image/png"}
+            inspected = await session.call_tool("inspect_chatgpt_image", {"file": file})
+            self.assertFalse(inspected.isError)
+            self.assertEqual(base64.b64decode(inspected.content[1].data), png())
+            self.assertNotIn("synthetic-secret", inspected.model_dump_json())
+            uploaded = await session.call_tool("upload_x_media", {"file": file})
+            self.assertFalse(uploaded.isError)
+            self.assertEqual(json.loads(uploaded.content[0].text), CONTRACTS["upload_result"])
+
+        await self.with_server(check, fixture=True, writes=True, files=True)

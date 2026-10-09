@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require json racket/port "json.rkt")
 (provide serve-tools rpc-error)
@@ -41,12 +42,13 @@
            (cond
              [(equal? method "ping") (hasheq)]
              [(equal? method "initialize")
-              (unless (eq? phase 'new) (rpc-error -32600 "Session already initialized."))
               (unless (and (string? (hash-ref params 'protocolVersion #f))
                            (hash? (hash-ref params 'capabilities #f))
                            (hash? (hash-ref params 'clientInfo #f)))
                 (rpc-error -32602 "Invalid initialization parameters."))
-              (set! phase 'initializing)
+              ;; A tunnel can repeat discovery against the same stdio child.
+              ;; Re-send metadata without revoking an already completed handshake.
+              (when (eq? phase 'new) (set! phase 'initializing))
               (hasheq 'protocolVersion protocol-version 'capabilities (hasheq 'tools (hasheq 'listChanged #f))
                       'serverInfo (hasheq 'name name 'version version))]
              [(not (eq? phase 'ready)) (rpc-error -32600 "Initialize the session first.")]

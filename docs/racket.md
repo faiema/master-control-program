@@ -12,8 +12,9 @@ binding. Python remains only as an independent MCP client in development checks.
 | `racket/server.rkt` | X tool schemas, annotations, validation, and dispatch |
 | `racket/http.rkt` | Official-host HTTPS, verified TLS, response bounds, safe errors, no retries/redirects |
 | `racket/media.rkt` | CDN URL allowlist, base64, provenance, unchanged image content |
-| `racket/image-worker.rkt` | Credential-free native image validation in a bounded subprocess |
-| `racket/auth.rkt` | X scopes, token exchange, token loading and expiration |
+| `racket/chatgpt-file.rkt` | Opt-in ChatGPT file references, exact download-host allowlist, bounded credential-free downloads |
+| `racket/image-worker.rkt` | Native image validation in a bounded subprocess with an empty environment |
+| `racket/auth.rkt` | X scopes, token exchange, expiry checks and automatic refresh |
 | `racket/login.rkt` | Local authorization flow and terminal interaction |
 | `racket/x-api.rkt` | Independent write gate, upload/post request and response translation |
 | `racket/common.rkt` | Application-safe exceptions and deadline/JSON adapters |
@@ -36,7 +37,7 @@ release or speculative extension system.
 | `json.rkt` | `parse-json` accepts exactly one JSON value and rejects trailing data |
 | `pkce.rkt` | `make-pkce`, `random-state`, and `base64url`, using cryptographic randomness and S256 |
 | `oauth-loopback.rkt` | Bounded localhost authorization-code callback, state validation, duplicate rejection, denial and timeout handling |
-| `secret-file.rkt` | `write-private-json` atomically replaces a mode-0600 JSON file without changing permissions of existing parent directories |
+| `secret-file.rkt` | `write-private-json` atomically replaces a mode-0600 JSON file; `call-with-private-json-lock` coordinates threads and processes using a stable sibling lock file; existing parent permissions are preserved |
 | `image.rkt` | `inspect-static-image` takes byte/pixel limits and returns an `image-info` record without changing the input bytes |
 | `webp.rkt` | Small libwebp decoding binding, used by the image validator |
 
@@ -48,11 +49,19 @@ authorization, and constructing MCP results. This separation allows another
 project to reuse the transport without importing the X application. Tests run
 it with an unrelated server identity and handler.
 
+Repeated initialization returns server metadata without resetting a completed
+handshake. This supports tunnel discovery reusing one stdio subprocess. The
+first initialization still requires `notifications/initialized` before tools.
+
 The generic image library can be used directly for trusted data. This application
 runs it in a separate process for untrusted media: a parent custodian can kill a
 stalled native codec even if the codec is executing C code. The worker inherits
 an empty environment, receives only bounded image bytes, and returns JSON
 metadata or a safe error. It has no HTTP or credential operations.
+This is process isolation for crashes and deadlines, not an OS security sandbox:
+the child runs as the same user and retains that user's filesystem and network
+permissions. Clearing its environment does not prevent access to secret files.
+Stronger containment is a follow-up if access expands beyond one trusted owner.
 
 ## Image validation
 
@@ -88,10 +97,16 @@ No image transformation is performed.
   before repeating an uncertain write.
 - Writes are hidden unless `MCP_X_ENABLE_WRITES=1`; the API layer separately gates
   them before credential access or network traffic.
-- No live account authorization or writes have been verified. Tests use mock
-  token responses, synthetic images, and local callback requests only.
-- Hosted transport, practical generated-image handoff, token refresh, asynchronous
-  media processing, and video support remain unimplemented.
+- Live account authorization, upload, posting, and an image reply succeeded from
+  local clients on 2026-10-08. Ordinary tests still use mock token responses,
+  synthetic images, and local callback requests only.
+- Secure MCP Tunnel and file-reference tools passed local tests and user-confirmed
+  live ChatGPT image checks; see [ChatGPT setup](chatgpt.md). The tunnel currently
+  runs as a local test process. Automatic token refresh has synthetic coverage;
+  the new offline-access grant is saved, but live verification remains pending. Asynchronous
+  processing and video support remain unimplemented.
+
+See the [release checklist and backlog](release.md) for prioritized follow-up.
 
 The Python runtime and its console entrypoints were removed after native image,
 OAuth, request-construction, and MCP contracts passed. Commit `aaa39e4` retains the

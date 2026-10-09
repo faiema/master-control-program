@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require net/base64 racket/random racket/string)
 (provide base64url random-state make-pkce)

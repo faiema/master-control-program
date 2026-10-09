@@ -13,3 +13,4 @@ compiled/
 .agents/
 .aws/
 .codex/
+output/

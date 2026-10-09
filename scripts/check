@@ -1,0 +1,26 @@
+#!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+set -euo pipefail
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd -- "$repo_dir"
+test_python="${MCP_TEST_PYTHON:-$repo_dir/.venv/bin/python}"
+command -v racket >/dev/null
+command -v raco >/dev/null
+if [[ ! -x "$test_python" ]]; then
+    echo 'Missing test Python. Run uv sync --locked or set MCP_TEST_PYTHON.' >&2
+    exit 1
+fi
+# Test credentials and transports are synthetic. Clear ambient production settings.
+unset X_ACCESS_TOKEN X_CLIENT_ID X_CLIENT_SECRET MCP_X_TOKEN_FILE
+unset MCP_CHATGPT_FILE_HOSTS MCP_CHATGPT_FILES MCP_X_ENABLE_WRITES
+raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt racket/chatgpt-file-tests.rkt
+"$test_python" - <<'PY'
+import sys
+import unittest
+
+suite = unittest.defaultTestLoader.discover("tests")
+result = unittest.TextTestRunner(verbosity=2).run(suite)
+if result.skipped:
+    print("Release checks require zero skipped tests.", file=sys.stderr)
+sys.exit(0 if result.wasSuccessful() and result.testsRun > 0 and not result.skipped else 1)
+PY

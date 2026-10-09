@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (provide call-with-deadline)
 

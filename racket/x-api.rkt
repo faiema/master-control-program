@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require racket/list racket/string "auth.rkt" "common.rkt" "http.rkt" "media.rkt")
 (provide x-id post-body upload-media create-post current-writes-enabled)

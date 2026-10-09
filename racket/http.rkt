@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require json net/http-client openssl racket/match racket/string "common.rkt")
 (provide request current-transport json-request read-response)

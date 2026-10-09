@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 ;; Generic, offline static-image validation. It has no knowledge of URLs, X,
 ;; MCP, credentials, or the application's byte/pixel policy.

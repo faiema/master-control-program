@@ -1,7 +1,8 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require json net/base64 net/uri-codec net/url rackunit racket/file racket/list racket/port racket/string racket/tcp
-         "auth.rkt" "common.rkt" "http.rkt" "lib/pkce.rkt" "lib/oauth-loopback.rkt")
+         "auth.rkt" "common.rkt" "http.rkt" "lib/pkce.rkt" "lib/oauth-loopback.rkt" "x-api.rkt")
 
 (define (browser-request port target [partial? #f])
   (define-values (input output) (tcp-connect "127.0.0.1" port))
@@ -29,7 +30,7 @@
     (check-equal? (cdr (assq 'code_challenge_method query)) "S256")
     (check-equal? (cdr (assq 'state query)) state)
     (check-equal? (cdr (assq 'scope query)) scopes)
-    (check-false (regexp-match? #rx"offline.access" url))
+    (check-true (regexp-match? #rx"offline.access" url))
     (check-false (regexp-match? (regexp verifier) url)))
 
   (test-case "public and confidential exchanges match official form API"
@@ -48,17 +49,18 @@
                             (check-equal? (hash-ref headers "Authorization") "Basic Y2xpZW50OnN5bnRoZXRpYy1zZWNyZXQ=")
                             (check-false (hash-has-key? headers "Authorization")))
                         (values (hash) (jsexpr->bytes (hasheq 'access_token "synthetic-token" 'expires_in 7200
-                                                              'token_type "bearer" 'scope scopes))))])
+                                                              'token_type "bearer" 'refresh_token "synthetic-refresh" 'scope scopes))))])
         (define record (exchange "code" "verifier" "client" secret))
         (check-equal? (hash-ref record 'access_token) "synthetic-token")
         (check-true (> (hash-ref record 'expires_at) (current-seconds)))
         (check-equal? calls 1))))
 
   (test-case "token exchange rejects malformed data and missing scopes safely"
-    (define valid (hasheq 'access_token "synthetic-secret" 'expires_in 7200 'token_type "bearer" 'scope scopes))
+    (define valid (hasheq 'access_token "synthetic-secret" 'expires_in 7200 'token_type "bearer" 'refresh_token "synthetic-refresh" 'scope scopes))
     (for ([raw (in-list (append (list #"not json" #"[]")
                                (map jsexpr->bytes
-                                    (list (hash-set valid 'scope "tweet.read")
+                                    (list (hash-remove valid 'refresh_token) (hash-set valid 'refresh_token "")
+                                          (hash-set valid 'scope "tweet.read")
                                           (hash-set valid 'token_type "other") (hash-set valid 'expires_in 0)
                                           (hash-set valid 'expires_in #t) (hash-set valid 'access_token "bad\r\nheader")))))])
       (parameterize ([current-transport (lambda (url #:method method #:headers headers #:body body #:limit limit)
@@ -80,7 +82,97 @@
         (file-or-directory-permissions path #o644)
         (save-token record path)
         (check-equal? (bitwise-and (file-or-directory-permissions path 'bits) #o777) #o600)
-        (check-equal? (length (directory-list (build-path directory "nested" "secrets"))) 1))
+        (check-equal? (length (directory-list (build-path directory "nested" "secrets"))) 2))
+      (lambda () (delete-directory/files directory))))
+
+  (test-case "refresh rotates tokens once before concurrent writes and survives restart"
+    (define directory (make-temporary-file "mcp-refresh-~a" 'directory "/tmp"))
+    (define path (build-path directory "token.json"))
+    (define environment (environment-variables-copy (current-environment-variables)))
+    (environment-variables-set! environment #"X_ACCESS_TOKEN" #f)
+    (environment-variables-set! environment #"X_CLIENT_SECRET" #f)
+    (environment-variables-set! environment #"MCP_X_TOKEN_FILE" (path->bytes path))
+    (define expired (hasheq 'access_token "old-access" 'refresh_token "old-refresh"
+                           'expires_at 1 'client_id "client" 'scope scopes 'confidential #f))
+    (define calls 0)
+    (define posts 0)
+    (dynamic-wind
+      void
+      (lambda ()
+        (save-token expired path)
+        (parameterize
+            ([current-environment-variables environment]
+             [current-writes-enabled #t]
+             [current-transport
+              (lambda (url #:method method #:headers headers #:body body #:limit limit)
+                (cond
+                  [(equal? url "https://api.x.com/2/oauth2/token")
+                   (set! calls (add1 calls))
+                   (define form (form-urlencoded->alist (bytes->string/utf-8 body)))
+                   (check-equal? (cdr (assq 'grant_type form)) "refresh_token")
+                   (check-equal? (cdr (assq 'refresh_token form)) "old-refresh")
+                   (check-equal? (cdr (assq 'client_id form)) "client")
+                   (check-false (assq 'code_verifier form))
+                   (check-false (hash-has-key? headers "Authorization"))
+                   (sleep 0.05)
+                   (values (hash) (jsexpr->bytes (hasheq 'access_token "new-access" 'refresh_token "new-refresh"
+                                                        'expires_in 7200 'token_type "bearer" 'scope scopes)))]
+                  [else
+                   (set! posts (add1 posts))
+                   (check-equal? (hash-ref headers "Authorization") "Bearer new-access")
+                   (values (hash) #"{\"data\":{\"id\":\"123\"}}")]))])
+          (define results (make-channel))
+          (for ([i (in-range 4)])
+            (thread (lambda () (channel-put results (with-handlers ([exn:fail? values]) (access-token))))))
+          (for ([i (in-range 4)]) (check-equal? (sync/timeout 5 results) "new-access"))
+          (check-equal? calls 1)
+          (check-equal? (hash-ref (parse-json (file->bytes path)) 'refresh_token) "new-refresh")
+          (check-equal? (bitwise-and (file-or-directory-permissions path 'bits) #o777) #o600)
+          (create-post "synthetic post")
+          (check-equal? posts 1)
+          (check-equal? calls 1)))
+      (lambda () (delete-directory/files directory))))
+
+  (test-case "refresh failure blocks posting and preserves saved credentials"
+    (define directory (make-temporary-file "mcp-refresh-failure-~a" 'directory "/tmp"))
+    (define path (build-path directory "token.json"))
+    (define environment (environment-variables-copy (current-environment-variables)))
+    (environment-variables-set! environment #"X_ACCESS_TOKEN" #f)
+    (environment-variables-set! environment #"X_CLIENT_SECRET" #"synthetic-secret")
+    (environment-variables-set! environment #"MCP_X_TOKEN_FILE" (path->bytes path))
+    (define expired (hasheq 'access_token "old-access" 'refresh_token "old-refresh"
+                           'expires_at (+ (current-seconds) 10) 'client_id "client" 'scope scopes 'confidential #t))
+    (dynamic-wind
+      void
+      (lambda ()
+        (save-token expired path)
+        (for ([failure '(revoked network malformed scopes)])
+          (define calls 0)
+          (parameterize
+              ([current-environment-variables environment] [current-writes-enabled #t]
+               [current-transport
+                (lambda (url #:method method #:headers headers #:body body #:limit limit)
+                  (set! calls (add1 calls))
+                  (check-equal? url "https://api.x.com/2/oauth2/token")
+                  (check-equal? (hash-ref headers "Authorization") "Basic Y2xpZW50OnN5bnRoZXRpYy1zZWNyZXQ=")
+                  (case failure
+                    [(revoked) (bridge-error "HTTP 400: synthetic-secret")]
+                    [(network) (error "synthetic-secret old-refresh")]
+                    [(malformed) (values (hash) #"not json")]
+                    [else (values (hash) (jsexpr->bytes (hasheq 'access_token "new-access" 'expires_in 7200
+                                                               'token_type "bearer" 'scope "tweet.read")))]))])
+            (check-exn (lambda (e) (and (exn:fail:bridge? e)
+                                        (not (regexp-match? #rx"synthetic-secret|old-refresh" (exn-message e)))))
+                       (lambda () (create-post "must not be sent")))
+            (check-equal? calls 1)
+            (check-equal? (parse-json (file->bytes path)) expired)))
+        ;; Optional refresh response fields retain the previous grant.
+        (parameterize
+            ([current-environment-variables environment]
+             [current-transport (lambda (url #:method method #:headers headers #:body body #:limit limit)
+                                  (values (hash) #"{\"access_token\":\"new-access\",\"expires_in\":7200,\"token_type\":\"bearer\"}"))])
+          (check-equal? (access-token) "new-access")
+          (check-equal? (hash-ref (parse-json (file->bytes path)) 'refresh_token) "old-refresh")))
       (lambda () (delete-directory/files directory))))
 
   (test-case "callback state, duplicate parameters, denial and malformed requests"

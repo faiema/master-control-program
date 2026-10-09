@@ -1,0 +1,9 @@
+#!/bin/bash
+# SPDX-License-Identifier: AGPL-3.0-only
+set -euo pipefail
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+cd -- "$repo_dir"
+# This acceptance-test entrypoint cannot inherit write access from the operator.
+unset X_ACCESS_TOKEN X_CLIENT_SECRET CONTROL_PLANE_API_KEY OPENAI_ADMIN_KEY
+export MCP_X_ENABLE_WRITES=0 MCP_CHATGPT_FILES=1
+exec racket "$repo_dir/racket/server.rkt"

@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 ;; Minimal bindings to the documented libwebp decoding API. Keep unsafe FFI
 ;; inside the image worker, never in the long-lived MCP process.

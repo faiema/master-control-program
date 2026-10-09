@@ -1,5 +1,45 @@
 # Verification and next steps
 
+## Current summary — 2026-10-08
+
+The latest checks passed 42 Racket cases and 5 Python tests (including independent
+MCP client tests and cross-process token refresh);
+all passed, with no skips. Live OAuth, upload, posting, and an image reply have
+succeeded from local clients. Hosted ChatGPT image retrieval/inspection is
+confirmed; hosted publishing and a manually attached image remain unverified.
+Use the [release checklist](release.md) for current launch gates and follow-up.
+Earlier observations below describe their dated test sessions, not current
+limitations unless repeated in this summary or the checklist.
+
+## ChatGPT file-input follow-up — 2026-10-07
+
+- The expanded suite passes 40 Racket cases and 4 independent MCP client tests.
+- Synthetic ChatGPT file objects pass through the real Racket stdio process and
+  Python MCP SDK, returning unchanged image blocks and the original upload result
+  contract. Tests check schema metadata, host rejection, MIME/size validation,
+  signed-URL redaction, mutually exclusive inputs, and write gating.
+- The read-only launch script overrides inherited write enablement and exposes
+  only fetch and image inspection tools.
+- The user confirmed Tunnel is available. The official tunnel-client v0.0.16
+  Linux archive was downloaded and checked against the release SHA-256 list.
+  A local read-only profile passed `doctor`; the managed runtime subsequently
+  reported running, healthy, and ready. ChatGPT discovery succeeded after the
+  handshake fix below. The user then confirmed ChatGPT sees and describes the
+  real X image returned by `fetch_x_media`. The user also confirmed an accessible
+  generated image passed to `inspect_chatgpt_image` returns visible image content.
+  The storage hostname was observed, checked over HTTPS, and allowed exactly;
+  no signed URL was copied into chat or documentation. See
+  [ChatGPT setup](chatgpt.md). This is user-confirmed hosted behavior; the agent
+  did not independently view that separate ChatGPT conversation.
+- Rechecked the installed official X tool catalog; the three capability gaps
+  remain. No paid account read, upload, or post was needed for these checks.
+- Initial ChatGPT setup reached the server but failed. Tunnel health recorded
+  two initialization epochs in the same stdio child. The server now returns
+  metadata for repeated initialization without resetting readiness; regression
+  tests preserve the initial handshake gate. After restart the user confirmed
+  connection, and `/health/mcp` reported successful initialization and discovery
+  of `fetch_x_media` and `inspect_chatgpt_image` in the same child at epoch 2.
+
 ## Observed on 2026-10-07
 
 - The official X MCP returned account/post metadata and image URLs but exposed no
@@ -29,9 +69,8 @@
 ## Repeat offline checks
 
 ```sh
-raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt
 uv sync --locked
-.venv/bin/python -m unittest discover -s tests -v
+bash scripts/check
 ```
 
 The OAuth tests use temporary owner-only files and localhost connections only.
@@ -53,6 +92,19 @@ metadata alone do not establish image delivery.
 
 ## Live write acceptance
 
+On 2026-10-08 the user explicitly authorized the generated Faië/Chaz image and
+exact post text after a LibreWolf preview. An independent Python MCP client
+called the native Racket server over stdio. X accepted upload
+`2108303269189787648` and returned published post `2108303271739982011`
+(https://x.com/i/status/2108303271739982011). No writes were retried. This confirms
+the saved OAuth token, image upload, and post creation path. It does not yet
+verify publishing through hosted ChatGPT or independent post readback.
+
+A second authorized image-only reply succeeded through a local Racket client
+calling the tool handlers: https://x.com/i/status/2108305465646137717, replying
+to the first post. The user confirmed it worked. This second path did not use
+the stdio transport or ChatGPT tunnel. No writes were retried.
+
 Only after an explicit publishing request: configure the developer app, run
 `racket racket/login.rkt`, complete authorization, and verify the intended account.
 Upload the chosen image once, retain its media ID and expiry, publish the intended
@@ -62,11 +114,8 @@ non-secret observations.
 
 ## Remaining work
 
-- Verify live OAuth and an explicitly requested upload/post.
-- Design authenticated remote transport and client-native image handoff for hosted
-  ChatGPT. Local stdio plus base64 is not the finished web workflow.
-- Add token refresh only when needed; no offline scope is requested now.
-- Async processing, GIF/video, post/media-key lookup, archives, and persistent
-  caches remain absent. Verify X retention terms before adding storage.
-- Reuse the isolated library modules in a concrete second project before creating
-  a separately distributed package or general extension mechanism.
+Tracked in [release checklist and backlog](release.md). Release preparation comes
+before the next hosted ChatGPT publishing test; improved safe X error reporting
+is required before launch. Token refresh now has synthetic regression coverage;
+the new offline-access grant is saved. Runtime setup and live refresh verification remain.
+Cancellation remains follow-up work. Decoder sandboxing is deferred while access stays private and single-owner.

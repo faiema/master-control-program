@@ -1,50 +1,63 @@
-# Session handoff — 2026-10-07
+# Session handoff — 2026-10-08
 
-## User instructions
+## Current direction
 
-Racket is the implementation target. The user asked to refine it while away,
-keep costs modest, identify genuinely reusable components, and deprecate/remove
-Python when its runtime features had native replacements. No sub-agents were
-requested or used. No live upload, post, or account authorization was requested.
+Prepare a public source release for personal, self-hosted use: one owner and one
+X account per instance. The user selected GNU Affero GPL; the release uses
+AGPL-3.0-only. Shared public hosting is outside the release scope. Follow the
+[release checklist](release.md), which owns the current TODOs and launch gates.
 
-## Completed
+Token refresh is implemented with synthetic tests; the new offline-access grant
+is saved. Runtime credential setup and live refresh verification remain pending. The user accepted cancellation as a TODO, deferred stronger
+decoder isolation while access remains private, and requires improved safe X
+error reporting before launch. Complete release preparation before the next
+hosted ChatGPT publishing test. Do not publish test posts without explicit
+content authorization. Publishing the repository/tag is a separate action.
 
-- Native Racket stdio MCP, HTTPS, all three tools, image validation, and OAuth PKCE
-  login now replace the Python application. Start with `racket racket/server.rkt`
-  or `racket racket/login.rkt`.
-- The image worker uses Racket draw/native JPEG/PNG codecs and libwebp through FFI.
-  It runs in an isolated Racket subprocess with empty environment and a deadline.
-- Generic source modules are isolated under `racket/lib/`: MCP stdio, deadlines,
-  strict JSON, PKCE, OAuth loopback, protected JSON storage, and image validation.
-  They are not published as separate packages.
-- Python runtime source, console entrypoints, Pillow, and the Python decoder
-  helper were removed. Python remains only for the independent MCP SDK client
-  tests and read-only verification script. `uv.lock` was updated offline.
-- Native Racket tests pass: 33 cases. Python MCP client tests pass: 3, zero skips.
-  Original synthetic contracts were captured before removing the prototype.
-  The old Python source remains available in Git at `aaa39e4`.
-- Live Racket fetch after removing Python returned exactly the previously verified
-  JPEG bytes/hash. See docs/verification.md. No new paid account reads were needed.
-- OAuth tests used synthetic responses and real localhost callbacks, including
-  rejection, denial, secure file replacement, and timeout behavior.
-- No real tokens created, live uploads, posts, remote deployment, or push.
+## Runtime and verification
 
-## Environment
+- Production runtime and OAuth login are native Racket. Python is only an
+  independent test client. Do not restart the completed language migration.
+- Local Linux/Racket 9.3 checks pass: 42 Racket cases and 5 Python
+  cases, zero skips. Run `uv sync --locked` then `bash scripts/check`.
+- ChatGPT discovered read tools through Secure MCP Tunnel after the repeated
+  initialization fix, and the user confirmed visual inspection of both an X
+  image and an accessible generated image. See [verification](verification.md).
+- Live OAuth, upload and posting succeeded through a local Python MCP client.
+  An image reply then succeeded through a local Racket client invoking tool
+  handlers. The user confirmed the reply worked. Hosted ChatGPT publishing has
+  not been exercised; do not conflate these paths.
+- Generated images, prompts and non-secret posting receipts are local output
+  under ignored `output/`. They are not source-release assets.
 
-Racket 9.3, draw-lib, OpenSSL, Cairo, JPEG/PNG, and libwebp are installed. Local TCP
-listeners and live network checks required execution outside the sandbox.
-The `raco test` prefix was approved. Native unit and Racket MCP client checks
-work inside the sandbox; the removed Python server used to stall there.
+## Local tunnel notes
 
-## Remaining work
+The test client is v0.0.16, checksum-verified, currently installed under
+`/tmp/mcp-tunnel-client/`. Profiles and credentials are under ignored `.secrets/`.
+The managed alias is `master-control-program`. Use the client's `runtimes status`
+to discover current health and UI endpoints rather than relying on old ports.
+Do not print full runtime logs or signed image URLs.
 
-1. Configure a developer app locally and verify live OAuth when the user is ready;
-   never ask for secrets in chat. Live writes require specific intended content.
-2. Hosted authenticated MCP transport and practical generated-image handoff remain
-   unimplemented. Do not expose the stdio server via an unauthenticated wrapper.
-3. Test the generic library modules in an actual second project before packaging.
-4. Refresh tokens, video/async media, archives, and caches have not been added.
-   Verify current terms before introducing persistent X-content storage.
+The current setup launches the normal `racket/server.rkt`, with writes and
+ChatGPT files enabled, an absolute token-file path, and `X_ACCESS_TOKEN` unset.
+Only the exact observed image-storage host is allowed. Preserve
+`MCP_STDIO_SEND_INITIALIZED_NOTIFICATION=true` when restarting the tunnel. The
+readonly launcher intentionally forces writes off and is not the posting entrypoint.
+The user completed the new offline-access login; the saved confidential-client
+grant includes a refresh token. Runtime restart and availability of X_CLIENT_SECRET
+in the server environment still need verification. Neither old health reports nor
+past successful posts establish that credentials are still valid.
 
-Read AGENTS.md, README.md, docs/racket.md, and docs/verification.md for the durable
-constraints and current contracts. Do not restart the Python migration from scratch.
+The user proposed an always-on Debian server as the eventual deployment target.
+It was inspected read-only; nothing was installed. Deployment and any OS upgrade
+are separate work. One service can supervise tunnel-client and its Racket child.
+
+## Architecture boundaries
+
+Keep generic code in `racket/lib/` free of X policy. Preserve synthetic contracts
+and independent client tests. The image worker has an empty environment and
+timeout/crash isolation, but is not an OS security sandbox; it retains the
+service user's permissions. Do not claim it cannot access credential files.
+
+Read `AGENTS.md`, `README.md`, `docs/racket.md`, `docs/chatgpt.md`, and
+`docs/release.md` before changing authentication, transport, or file handoff.

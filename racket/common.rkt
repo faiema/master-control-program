@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require "lib/json.rkt" "lib/deadline.rkt")
 (provide (struct-out exn:fail:bridge) bridge-error call/bounded parse-json)

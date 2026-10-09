@@ -3,6 +3,7 @@ name = "master-control-program"
 version = "0.1.0"
 description = "Independent MCP interoperability checks for the Racket server."
 requires-python = ">=3.11"
+license = "AGPL-3.0-only"
 dependencies = ["mcp>=1.28,<2"]
 
 [tool.uv]

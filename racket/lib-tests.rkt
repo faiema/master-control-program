@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require json rackunit racket/list racket/port "lib/json.rkt" "lib/mcp-stdio.rkt")
 
@@ -45,3 +46,13 @@
     (check-equal? (parse-json "{} \n\t") (hasheq))
     (check-exn exn:fail? (lambda () (parse-json "{} {}")))
     (check-exn exn:fail? (lambda () (parse-json "")))))
+
+(module+ test
+  (test-case "repeated tunnel discovery preserves ready state and initialization gate"
+    (define tools-request (hasheq 'jsonrpc "2.0" 'id 2 'method "tools/list"))
+    (define responses (run (list initialize initialize tools-request initialized
+                                 tools-request initialize tools-request)))
+    (check-equal? (hash-ref (car responses) 'result) (hash-ref (cadr responses) 'result))
+    (check-equal? (hash-ref (hash-ref (caddr responses) 'error) 'code) -32600)
+    (for ([index '(3 4 5)])
+      (check-true (hash-has-key? (list-ref responses index) 'result)))))

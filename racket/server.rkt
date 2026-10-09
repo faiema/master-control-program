@@ -1,6 +1,7 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
-(require json racket/list "common.rkt" "media.rkt" "x-api.rkt" "lib/mcp-stdio.rkt")
+(require json racket/list "common.rkt" "media.rkt" "x-api.rkt" "chatgpt-file.rkt" "lib/mcp-stdio.rkt")
 (provide serve tool-list call-tool)
 
 (define string-schema (hasheq 'type "string"))
@@ -12,17 +13,30 @@
           'idempotentHint (not write?) 'openWorldHint #t))
 
 (define (tool-list)
+  (define files? (or (current-file-inputs-enabled) (pair? (current-file-hosts))))
   (append
    (list (hasheq 'name "fetch_x_media"
                  'description "See an X image: pass a pbs.twimg.com/media URL from the official X MCP. Returns original image content and provenance. Optional IDs are caller-provided, not verified."
                  'inputSchema (schema (hasheq 'url string-schema 'post_id optional-string-schema
                                                'media_key optional-string-schema) '("url"))
                  'annotations (annotations #f)))
+   (if files?
+       (list (hasheq 'name "inspect_chatgpt_image"
+                     'description "Read a ChatGPT image file and return its original image content for visual inspection. Does not upload to X."
+                     'inputSchema (schema (hasheq 'file file-schema) '("file"))
+                     '_meta (hasheq 'openai/fileParams '("file"))
+                     'annotations (annotations #f)))
+       '())
    (if (current-writes-enabled)
        (list
         (hasheq 'name "upload_x_media"
-                'description "WRITE: upload raw base64 JPEG/PNG (max 5 MiB) to X on explicit user request. Returns an expiring media ID. Never retry blindly."
-                'inputSchema (schema (hasheq 'image_base64 string-schema) '("image_base64"))
+                'description "WRITE: upload JPEG/PNG (max 5 MiB) to X on explicit user request. Supply exactly one image source: raw base64 or, when available, a ChatGPT file reference. Never transcribe image base64. Returns an expiring media ID. Never retry blindly."
+                'inputSchema (if files?
+                                 (hash-set (schema (hasheq 'image_base64 string-schema 'file file-schema))
+                                           'oneOf (list (hasheq 'required '("image_base64"))
+                                                        (hasheq 'required '("file"))))
+                                 (schema (hasheq 'image_base64 string-schema) '("image_base64")))
+                '_meta (if files? (hasheq 'openai/fileParams '("file")) (hasheq))
                 'annotations (annotations #t))
         (hasheq 'name "create_x_post"
                 'description "WRITE: publish a real X post only when explicitly requested. Supports uploaded image IDs and a reply target. Never automatically retry."
@@ -51,13 +65,23 @@
     (for ([(key value) (in-hash arguments)])
       (unless (case key
                 [(url text image_base64) (string? value)]
+                [(file) (hash? value)]
                 [(post_id media_key reply_to) (or (string? value) (eq? value 'null))]
                 [(media_ids) (or (eq? value 'null) (and (list? value) (andmap string? value)))])
         (bridge-error "Validation: tool argument has the wrong type.")))
     (cond
       [(equal? name "fetch_x_media")
        (fetch-result (hash-ref arguments 'url) (hash-ref arguments 'post_id 'null) (hash-ref arguments 'media_key 'null))]
-      [(equal? name "upload_x_media") (text-result (upload-media (hash-ref arguments 'image_base64)))]
+      [(equal? name "inspect_chatgpt_image") (inspect-chatgpt-image (hash-ref arguments 'file))]
+      [(equal? name "upload_x_media")
+       (unless (= 1 (+ (if (hash-has-key? arguments 'file) 1 0)
+                       (if (hash-has-key? arguments 'image_base64) 1 0)))
+         (bridge-error "Validation: supply exactly one of file or image_base64."))
+       (text-result
+        (if (hash-has-key? arguments 'file)
+            (let-values ([(raw metadata) (read-chatgpt-image (hash-ref arguments 'file))])
+              (upload-media (encode-base64 raw)))
+            (upload-media (hash-ref arguments 'image_base64))))]
       [else (text-result (create-post (hash-ref arguments 'text "")
                                       (hash-ref arguments 'media_ids '()) (hash-ref arguments 'reply_to 'null)))])))
 
@@ -66,5 +90,7 @@
                #:input input #:output output))
 
 (module+ main
-  (parameterize ([current-writes-enabled (equal? (getenv "MCP_X_ENABLE_WRITES") "1")])
+  (parameterize ([current-writes-enabled (equal? (getenv "MCP_X_ENABLE_WRITES") "1")]
+                 [current-file-inputs-enabled (equal? (getenv "MCP_CHATGPT_FILES") "1")]
+                 [current-file-hosts (file-hosts-from-environment)])
     (serve)))

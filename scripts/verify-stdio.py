@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-only
 """Read-only live acceptance check; not part of the offline test suite."""
 import argparse
 import asyncio

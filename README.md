@@ -7,18 +7,34 @@ and let it post the picture when explicitly asked. The server and OAuth login
 are implemented in **Racket**. The superseded Python runtime has been removed;
 Python is used only for optional, independent MCP client checks.
 
-## Status
+## Status and scope
+
+Personal, self-hosted software: **one owner and one X account per instance**.
+Keep access restricted to that owner. There is no multi-user authentication or
+account isolation. Enabling writes allows connected clients to act on the
+configured X account; live posting still requires explicit user authorization.
 
 Implemented: local stdio MCP, original image retrieval, JPEG/PNG upload,
 text/media/reply posting, and local OAuth 2.0 PKCE login. Writes are hidden and
-disabled by default. No live uploads or posts have been made.
+disabled by default. Live OAuth, image upload, a post, and an image reply succeeded
+from local clients on 2026-10-08. Hosted ChatGPT publishing remains unverified.
 
-Verified on 2026-10-07: **33 Racket tests and 3 independent MCP client tests pass,
+Verified on 2026-10-08: **42 Racket tests and 5 Python tests pass,
 with zero skips**. A live X image passed through native Racket HTTPS, native
 image validation, and stdio MCP with identical bytes to the original prototype.
-The returned image was inspected visually during verification. OAuth callback
-and exchange behavior is tested with synthetic data; live account authorization
-and writes remain unverified. Hosted ChatGPT integration is still unfinished.
+The returned image was inspected visually during verification. Ordinary OAuth
+and write tests use synthetic data and never publish real content.
+
+ChatGPT file references are now supported behind an opt-in setting, with a
+read-only image round-trip tool and file input for uploads. See
+[ChatGPT connection and acceptance checks](docs/chatgpt.md). Secure MCP Tunnel
+reported healthy/ready during setup; ChatGPT successfully discovered both
+read-only tools, and the user confirmed it sees and describes a real X image
+returned by `fetch_x_media`. The user also confirmed an accessible generated
+image passes through `inspect_chatgpt_image` and returns visible image content.
+The tunnel is currently a local test runtime, not a boot-persistent deployment.
+The expanded local suite passes 42 Racket cases and 5 Python tests.
+See the [release checklist and backlog](docs/release.md) for launch gates.
 
 The connected official X MCP exposed reads and media URLs but no image-byte
 retrieval, media upload, or post creation when last checked. Re-check that surface
@@ -45,7 +61,8 @@ uses the same Racket executable, independently of the client's working directory
 | Tool | Input | Result |
 | --- | --- | --- |
 | `fetch_x_media` | Direct HTTPS `pbs.twimg.com/media/` URL; optional post ID/media key | Original MCP image content, MIME, dimensions, size, provenance |
-| `upload_x_media` | Raw base64 static JPEG/PNG, at most 5 MiB | Media ID, optional media key and expiry |
+| `inspect_chatgpt_image` (opt-in) | ChatGPT file reference from an explicitly allowed host | Original MCP image content and metadata |
+| `upload_x_media` (writes enabled) | Raw base64 static JPEG/PNG or, with file inputs enabled, a ChatGPT file reference; at most 5 MiB | Media ID, optional media key and expiry |
 | `create_x_post` | Text and/or up to four image media IDs; optional reply ID | Post ID and URL |
 
 Fetch accepts static JPEG, PNG, and WebP up to 5 MiB and 40 megapixels. These are
@@ -59,7 +76,9 @@ Reuse URLs from the official X MCP to avoid duplicate paid post lookups. Media
 keys alone are unsupported. Optional provenance IDs are caller-provided, not
 verified against X. Base64 upload is for clients that can supply bytes
 programmatically; do not ask an LLM to transcribe image data. Convenient generated
-image handoff for hosted ChatGPT remains to be designed and verified.
+image handoff for hosted ChatGPT uses the optional file-reference input described
+in [docs/chatgpt.md](docs/chatgpt.md). This path has been verified with an accessible
+generated image; a failed generation with no accessible file cannot be passed.
 
 ## Authentication and writes
 
@@ -72,16 +91,43 @@ image handoff for hosted ChatGPT remains to be designed and verified.
 4. Start the server with `MCP_X_ENABLE_WRITES=1` to expose write tools.
    Live uploads/publishing must follow an explicit user request.
 
-Login requests `tweet.read users.read tweet.write media.write`. Tokens are stored
+Login requests `tweet.read users.read tweet.write media.write offline.access`. Tokens are stored
 atomically in `.secrets/x-token.json` with mode 0600, ignored by Git. Set
 `MCP_X_TOKEN_FILE` to an absolute path when using a different working directory.
-`X_ACCESS_TOKEN` can supply an existing user-context OAuth token instead.
+`X_ACCESS_TOKEN` can supply an existing user-context OAuth token instead; this
+override bypasses the saved token and cannot refresh automatically.
 An app-only bearer token is insufficient for writes.
 
-No refresh flow or `offline.access` scope is implemented. Run login again on
-expiry. The official hosted X MCP's credentials are not exposed to this sidecar;
+Before authenticated requests, saved tokens refresh automatically when expired
+or within 30 seconds of expiry. Refresh tokens rotate in the same private file,
+under a lock shared by local processes. No background timer is needed. The saved
+record includes the client ID; confidential apps must also keep `X_CLIENT_SECRET`
+available in the server environment. The client secret is never saved in the
+record. A busy lock returns a retryable error; failed refresh never sends the
+pending upload/post, and uncertain writes are never automatically retried.
+
+**Existing installations need one new login** to grant `offline.access`, then a
+restart of the server/tunnel process to load this implementation. Revoked or
+invalid refresh credentials require login again. Network failures preserve the
+saved file; if X rotated a token but its response or local save was lost, a new
+login may be necessary. Do not share one token across separate machines or copy
+it between active installations: locking only coordinates the same local file.
+This follows [X's OAuth refresh flow](https://docs.x.com/fundamentals/authentication/oauth-2-0/authorization-code).
+
+The official hosted X MCP's credentials are not exposed to this sidecar;
 separate authorization is required. The developer account needs API access and
 any required credits.
+
+For a local write-enabled process using the saved token:
+
+```sh
+env -u X_ACCESS_TOKEN MCP_X_ENABLE_WRITES=1 \
+  MCP_X_TOKEN_FILE=/absolute/repo/.secrets/x-token.json \
+  racket /absolute/repo/racket/server.rkt
+```
+
+This enables tools; it does not publish by itself. ChatGPT file inputs add
+separate settings described in [ChatGPT setup](docs/chatgpt.md).
 
 Endpoints and scopes were checked on 2026-10-07 against X's
 [OAuth PKCE reference](https://docs.x.com/fundamentals/authentication/oauth-2-0/authorization-code),
@@ -92,17 +138,23 @@ Endpoints and scopes were checked on 2026-10-07 against X's
 
 ```sh
 raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt
+raco test racket/chatgpt-file-tests.rkt
 ```
 
 Tests use synthetic fixtures. OAuth tests open localhost listeners; they never
 contact X. Some sandboxes require permission for these local sockets.
 
-Optional independent MCP client checks use Python 3.11+ and the locked SDK:
+The combined development/release check uses Python 3.11+ and the locked MCP SDK:
 
 ```sh
 uv sync --locked
-.venv/bin/python -m unittest discover -s tests -v
+bash scripts/check
 ```
+
+This runs both suites and fails on skipped tests or empty Python discovery.
+CI uses the same command on Ubuntu with Racket 9.3. Other Racket versions and
+Windows remain unverified. Both suites are required for development/release
+checks; Python remains optional for users running the server.
 
 Python has no production entrypoints and Pillow is no longer a dependency.
 The original prototype is available in Git history at `aaa39e4`; its observable
@@ -113,5 +165,14 @@ See [Racket architecture and reusable modules](docs/racket.md) and
 After a timeout, cancellation, or malformed response, check X before resubmitting:
 a write may already have succeeded. Arbitrary upstream error bodies are suppressed.
 
-An authenticated remote transport is still needed for hosted web clients.
+For hosted web clients, use the [Secure MCP Tunnel setup](docs/chatgpt.md).
 Do not expose this local server through an unauthenticated HTTP wrapper.
+
+## License
+
+Copyright (C) 2026 Faië 魔法.
+
+GNU Affero General Public License, version 3 only (`AGPL-3.0-only`). See
+[LICENSE](LICENSE) for the full terms. This applies to this repository's original
+source, documentation, and synthetic fixtures. Dependencies retain their own
+licenses. This software comes without warranty.

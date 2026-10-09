@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require net/uri-codec racket/list racket/port racket/tcp "deadline.rkt")
 (provide receive-authorization-code parse-callback (struct-out exn:fail:oauth-callback))

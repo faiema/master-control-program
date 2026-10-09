@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require "auth.rkt" "common.rkt" "lib/oauth-loopback.rkt")
 (provide login)
@@ -16,7 +17,7 @@
                                                    (displayln "Open this URL in a browser on this machine:")
                                                    (displayln url) (flush-output)))))
   (save-token (exchange code verifier client-id (getenv "X_CLIENT_SECRET")))
-  (displayln "Token stored with owner-only permissions. Re-run login when it expires."))
+  (displayln "Tokens stored with owner-only permissions. Access tokens will refresh automatically."))
 
 (module+ main
   (with-handlers ([exn:fail:bridge? (lambda (e) (displayln (exn-message e) (current-error-port)) (exit 1))])

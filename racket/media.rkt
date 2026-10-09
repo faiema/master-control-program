@@ -1,4 +1,5 @@
 #lang racket/base
+;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require json net/base64 racket/list racket/port racket/runtime-path racket/string
          "common.rkt" "http.rkt")
