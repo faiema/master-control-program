@@ -1,7 +1,7 @@
 #lang racket/base
 ;; SPDX-License-Identifier: AGPL-3.0-only
 
-(require racket/list racket/string "auth.rkt" "common.rkt" "http.rkt" "media.rkt")
+(require racket/list racket/string "auth.rkt" "common.rkt" "http.rkt" "media.rkt" "lib/cancellation.rkt")
 (provide x-id post-body upload-media create-post current-writes-enabled)
 
 (define current-writes-enabled (make-parameter #f))
@@ -30,9 +30,13 @@
 
 (define (write-api path payload)
   (require-writes)
+  (define token ((current-token-provider)))
+  ;; Atomically refuse a pending cancellation or cross the irreversible boundary.
+  ;; From here, preserve the bounded HTTP result instead of claiming a rollback.
+  (mark-side-effect-started!)
   (define value (json-request (string-append "https://api.x.com/2/" path)
                               #:method "POST" #:payload payload
-                              #:headers (hash "Authorization" (string-append "Bearer " ((current-token-provider))))))
+                              #:headers (hash "Authorization" (string-append "Bearer " token))))
   (define data (hash-ref value 'data #f))
   (unless (hash? data) (bridge-error "X API: missing response data. A write may have succeeded; check X before retrying."))
   (with-handlers ([exn:fail:bridge? (lambda (_) (bridge-error "X API: missing or invalid response ID. Check X before retrying this write."))])

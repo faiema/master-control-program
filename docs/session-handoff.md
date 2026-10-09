@@ -8,7 +8,7 @@ AGPL-3.0-only. Shared public hosting is outside the release scope. Follow the
 [release checklist](release.md), which owns the current TODOs and launch gates.
 
 Token refresh is implemented and live-verified; replacement tokens are saved
-and the restarted tunnel has its confidential-client credentials. The user accepted cancellation as a TODO, deferred stronger
+and the restarted tunnel has its confidential-client credentials. Cancellation handling now has synthetic verification. The user deferred stronger
 decoder isolation while access remains private, and required improved safe X
 error reporting before launch; that implementation is now complete with synthetic
 coverage of HTTP and OAuth failures, timing, redaction, and partial errors. Complete release preparation before the next
@@ -19,7 +19,7 @@ content authorization. Publishing the repository/tag is a separate action.
 
 - Production runtime and OAuth login are native Racket. Python is only an
   independent test client. Do not restart the completed language migration.
-- Local Linux/Racket 9.3 checks pass: 46 Racket cases and 5 Python
+- Local Linux/Racket 9.3 checks pass: 52 Racket cases and 5 Python
   cases, zero skips. Run `uv sync --locked` then `bash scripts/check`.
 - ChatGPT discovered read tools through Secure MCP Tunnel after the repeated
   initialization fix, and the user confirmed visual inspection of both an X
@@ -53,6 +53,16 @@ past successful posts establish that credentials are still valid.
 The user proposed an always-on Debian server as the eventual deployment target.
 It was inspected read-only; nothing was installed. Deployment and any OS upgrade
 are separate work. One service can supervise tunnel-client and its Racket child.
+
+## Cancellation behavior
+
+Tool calls now run in separate custodians while input and pings remain responsive.
+At most eight are active. Pre-submission cancellation suppresses the response and
+cleans up resources. Token rotation/lock release is protected; cancellation then
+prevents the post. After the X submission boundary, cancellation is ignored and
+the bounded operation reports its outcome. No automatic retry or rollback is
+promised. See README for EOF and shutdown behavior. Hosted UI cancellation has
+not been verified.
 
 ## Architecture boundaries
 

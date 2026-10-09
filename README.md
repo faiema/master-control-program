@@ -19,7 +19,7 @@ text/media/reply posting, and local OAuth 2.0 PKCE login. Writes are hidden and
 disabled by default. Live OAuth, image upload, a post, and an image reply succeeded
 from local clients on 2026-10-08. Hosted ChatGPT publishing remains unverified.
 
-Verified on 2026-10-08: **46 Racket tests and 5 Python tests pass,
+Verified on 2026-10-08: **52 Racket tests and 5 Python tests pass,
 with zero skips**. A live X image passed through native Racket HTTPS, native
 image validation, and stdio MCP with identical bytes to the original prototype.
 The returned image was inspected visually during verification. Ordinary OAuth
@@ -33,7 +33,7 @@ read-only tools, and the user confirmed it sees and describes a real X image
 returned by `fetch_x_media`. The user also confirmed an accessible generated
 image passes through `inspect_chatgpt_image` and returns visible image content.
 The tunnel is currently a local test runtime, not a boot-persistent deployment.
-The expanded local suite passes 46 Racket cases and 5 Python tests.
+The expanded local suite passes 52 Racket cases and 5 Python tests.
 See the [release checklist and backlog](docs/release.md) for launch gates.
 
 The connected official X MCP exposed reads and media URLs but no image-byte
@@ -138,7 +138,7 @@ Endpoints and scopes were checked on 2026-10-07 against X's
 
 ```sh
 raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt
-raco test racket/chatgpt-file-tests.rkt
+raco test racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt
 ```
 
 Tests use synthetic fixtures. OAuth tests open localhost listeners; they never
@@ -175,6 +175,22 @@ For rate limits and service failures, validated integer `Retry-After` seconds an
 Invalid, past reset, or more-than-seven-day values are omitted. HTTP-date
 `Retry-After` values are not interpreted. Timing is advice, never an automatic
 retry; usage caps may require credits or account changes instead of waiting.
+
+MCP cancellation is supported while tools run. The transport handles up to eight
+active tool calls, responds to pings, and processes `notifications/cancelled`.
+Responses can arrive out of order and are matched by request ID. Cancellation
+before the upload/post boundary stops the request and releases its resources;
+no response is sent for the cancelled request. Unknown, completed, malformed,
+and initialization cancellation notifications are ignored.
+
+A cancellation during token refresh is deferred until the credential transaction
+and lock release finish, then stops before upload/post submission. Once a write
+crosses the submission boundary, cancellation is ignored and its bounded request
+finishes normally. It may succeed; a timeout or other uncertain outcome still
+requires checking X before retrying. Cancellation cannot undo a published post.
+Diagnostics distinguish these cases without echoing client-provided reasons.
+A client may discard a late response after cancellation. End-of-input drains
+accepted requests; process termination cannot guarantee their remote outcomes.
 
 For hosted web clients, use the [Secure MCP Tunnel setup](docs/chatgpt.md).
 Do not expose this local server through an unauthenticated HTTP wrapper.

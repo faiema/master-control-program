@@ -2,7 +2,7 @@
 ;; SPDX-License-Identifier: AGPL-3.0-only
 
 (require json net/base64 net/uri-codec racket/file racket/string
-         "common.rkt" "http.rkt" "lib/pkce.rkt" "lib/secret-file.rkt")
+         "common.rkt" "http.rkt" "lib/pkce.rkt" "lib/secret-file.rkt" "lib/cancellation.rkt")
 (provide access-token current-token-provider authorization exchange save-token token-path scopes redirect-uri)
 
 (define redirect-uri "http://127.0.0.1:8765/callback")
@@ -29,9 +29,13 @@
   (< (+ (current-seconds) 30) (hash-ref record 'expires_at)))
 
 (define (with-token-lock path thunk)
-  (call-with-private-json-lock
-   path thunk
-   (lambda () (bridge-error "Authentication: token file is busy; retry after the other login or refresh finishes."))))
+  ;; Killing a thread holding a semaphore does not release it. Protect lock
+  ;; acquisition through release as well as the rotating token transaction.
+  (call-with-cancellation-shield
+   (lambda ()
+     (call-with-private-json-lock
+      path thunk
+      (lambda () (bridge-error "Authentication: token file is busy; retry after the other login or refresh finishes."))))))
 
 (define (access-token)
   (define environment-token (getenv "X_ACCESS_TOKEN"))
@@ -52,9 +56,11 @@
                ;; Another process may have refreshed while this one waited.
                (define latest (read-token path))
                (if (fresh? latest) latest
-                   (let ([replacement (refresh latest)])
-                     (store-token replacement path)
-                     replacement)))))
+                   (call-with-cancellation-shield
+                    (lambda ()
+                      (define replacement (refresh latest))
+                      (store-token replacement path)
+                      replacement))))))
         'access_token))]))
 
 (define current-token-provider (make-parameter access-token))

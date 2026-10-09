@@ -33,7 +33,8 @@ release or speculative extension system.
 
 | Module | Public interface and purpose |
 | --- | --- |
-| `mcp-stdio.rkt` | `serve-tools` accepts tool-listing and invocation functions plus server metadata; `rpc-error` raises a safe protocol error |
+| `mcp-stdio.rkt` | `serve-tools` multiplexes bounded input and up to eight tool workers; handles cancellation, response serialization, and resource cleanup; `rpc-error` raises safe protocol errors |
+| `cancellation.rkt` | Per-request cancellation state, an application-selected side-effect boundary, and protected credential transactions; no X policy |
 | `deadline.rkt` | `call-with-deadline` runs a thunk under a child custodian and calls a supplied timeout handler; resources are closed on success as well as failure |
 | `json.rkt` | `parse-json` accepts exactly one JSON value and rejects trailing data |
 | `pkce.rkt` | `make-pkce`, `random-state`, and `base64url`, using cryptographic randomness and S256 |
@@ -49,6 +50,15 @@ The invocation function remains responsible for tool argument validation,
 authorization, and constructing MCP results. This separation allows another
 project to reuse the transport without importing the X application. Tests run
 it with an unrelated server identity and handler.
+
+Tool workers have individual custodians; cancellation closes managed ports and
+kills child processes. Accepted pre-submission cancellations suppress responses.
+An application marks irreversible submission with `mark-side-effect-started!`;
+subsequent cancellation is ignored so the bounded operation can report its
+outcome. `call-with-cancellation-shield` defers cancellation through credential
+rotation and storage-lock release. Stdin EOF drains accepted tool calls before
+shutdown; oversized frames or input failures shut down session resources. A
+process shutdown can still lose the outcome of a submitted write.
 
 Repeated initialization returns server metadata without resetting a completed
 handshake. This supports tunnel discovery reusing one stdio subprocess. The

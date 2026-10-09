@@ -76,11 +76,19 @@ of `X_CLIENT_SECRET`, the correct token-file path, and absence of `X_ACCESS_TOKE
 without printing credential values. Runtime status reported healthy and ready.
 This is still a local test deployment, not a boot-persistent service.
 
-## Follow-up work
+## Cancellation — implemented with synthetic verification
 
-- Cancellation: read notifications while tools execute, stop work before
-  submission where possible, and distinguish cancellation from an unknown
-  outcome once a write has been submitted to X.
+The transport reads cancellation notifications while tools execute, releases
+pre-submission request resources, and suppresses cancelled responses. Once an
+upload or post crosses its submission boundary, cancellation is ignored; the
+bounded request returns success or an error describing an uncertain outcome.
+Token rotation and storage-lock release finish before deferred cancellation.
+Tests cover running reads, port/subprocess cleanup, both write boundaries,
+malformed/unknown notifications, duplicate IDs, capacity, and refresh persistence.
+The current suite has 52 Racket tests and 5 Python tests. Hosted ChatGPT UI
+cancellation behavior has not been separately verified.
+
+## Follow-up work
 - Durable deployment: install the tunnel outside `/tmp`, use a dedicated service
   account and a systemd unit, and test restart/reboot and credential expiry.
   No public inbound listener is needed for the private tunnel.

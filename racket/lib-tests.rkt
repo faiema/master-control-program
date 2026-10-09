@@ -30,7 +30,7 @@
                  (hasheq 'jsonrpc "2.0" 'id 4 'method "ping"))))
     (check-equal? (length responses) 4)
     (check-equal? (hash-ref (hash-ref (hash-ref (car responses) 'result) 'serverInfo) 'name) "unrelated-project")
-    (check-equal? (hash-ref (car (hash-ref (hash-ref (caddr responses) 'result) 'content)) 'text) "one\ntwo"))
+    (check-equal? (hash-ref (car (hash-ref (hash-ref (findf (lambda (r) (equal? (hash-ref r 'id) 3)) responses) 'result) 'content)) 'text) "one\ntwo"))
 
   (test-case "malformed RPC messages receive valid error envelopes"
     (define responses (run "bad\n[]\n{\"jsonrpc\":\"2.0\",\"id\":{},\"method\":\"ping\"}\n"))

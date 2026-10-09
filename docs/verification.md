@@ -2,7 +2,7 @@
 
 ## Current summary — 2026-10-08
 
-The latest checks passed 46 Racket cases and 5 Python tests (including independent
+The latest checks passed 52 Racket cases and 5 Python tests (including independent
 MCP client tests and cross-process token refresh);
 all passed, with no skips. Live OAuth, upload, posting, and an image reply have
 succeeded from local clients. Hosted ChatGPT image retrieval/inspection is
@@ -118,7 +118,7 @@ Tracked in [release checklist and backlog](release.md). Release preparation come
 before the next hosted ChatGPT publishing test; safe X error reporting is now
 implemented and covered by synthetic regression tests. Token refresh now has synthetic regression coverage
 and successful live rotation, persistence, and runtime credential checks.
-Cancellation remains follow-up work. Decoder sandboxing is deferred while access stays private and single-owner.
+Cancellation now has synthetic transport and application coverage. Decoder sandboxing is deferred while access stays private and single-owner.
 
 ## Live refresh acceptance — 2026-10-08
 
@@ -150,3 +150,18 @@ and the distinction between timing advice and permission to repeat a write.
 Response formats and reset-header semantics were checked against the official
 [X error reference](https://docs.x.com/x-api/fundamentals/response-codes-and-errors)
 and [rate-limit documentation](https://docs.x.com/x-api/fundamentals/rate-limits).
+
+## Cancellation — 2026-10-08
+
+Six new deterministic pipe-based tests cover responsiveness during a blocked tool,
+pre-submission cancellation without an X request, cleanup of managed ports and
+subprocesses, post-submission success and uncertain failure with only one request,
+malformed/unknown/repeated notifications, duplicate active IDs, the eight-request
+limit, and token rotation/persistence before deferred cancellation. Storage-lock
+reuse is verified after cancellation. Existing independent Python stdio client
+checks continue to verify the asynchronous server's result contracts.
+
+The implementation follows the [MCP cancellation specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/utilities/cancellation):
+accepted cancellation suppresses the response; requests past an irreversible
+boundary cannot be cancelled and may still return their outcome. Client reasons
+are never logged. Hosted ChatGPT cancellation UI behavior remains unverified.
