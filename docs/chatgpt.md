@@ -151,3 +151,13 @@ through hosted ChatGPT. The downloaded tunnel binary lives in `/tmp`; configure 
 durable installation and startup policy before treating this as an always-on
 service. Manage this test process with `tunnel-client runtimes status` and
 `tunnel-client runtimes stop`, using alias `master-control-program`.
+
+## GitHub image setup — 2026-10-10
+
+The private launcher also loads GitHub authorization from the mode-0600,
+Git-ignored `.secrets/github-token.env`. The tunnel was restarted and reported
+healthy/ready; GitHub credential presence in its Racket child was verified without
+printing the token. A separate local stdio MCP client retrieved the private
+canonical image successfully, and the original image was visually inspected.
+See [GitHub verification](github.md#verification). Refresh tool discovery for
+`fetch_github_image`; hosted ChatGPT image delivery still needs confirmation.

@@ -1,8 +1,8 @@
 # Verification and next steps
 
-## Current summary — 2026-10-08
+## Current summary — 2026-10-10
 
-The latest checks passed 52 Racket cases and 5 Python tests (including independent
+The latest checks passed 64 Racket cases and 6 Python tests (including independent
 MCP client tests and cross-process token refresh);
 all passed, with no skips. Live OAuth, upload, posting, and an image reply have
 succeeded from local clients. Hosted ChatGPT image retrieval/inspection is
@@ -175,3 +175,7 @@ passed both jobs at commit `9f50348`: the full test command on Ubuntu 24.04 with
 Racket 9.3 and Python 3.13, and the redacted complete-history secret scan.
 This verifies the hosted CI environment; it does not verify hosted ChatGPT
 publishing or the deferred systemd deployment. No release tag was created.
+
+GitHub repository images: public native-HTTPS → stdio-MCP → visual inspection
+passed on 2026-10-09. Private canonical-image retrieval and visual inspection also passed on
+2026-10-10; hosted ChatGPT acceptance remains pending. See [GitHub verification](github.md#verification).

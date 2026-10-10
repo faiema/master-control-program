@@ -2,7 +2,7 @@
 
 The TRON joke, implemented with the **Model Context Protocol**.
 
-A small personal sidecar to the official X MCP: let the robot see the picture,
+A small personal sidecar to the official X and GitHub MCPs: let the robot see the picture,
 and let it post the picture when explicitly asked. The server and OAuth login
 are implemented in **Racket**. The superseded Python runtime has been removed;
 Python is used only for optional, independent MCP client checks.
@@ -19,7 +19,7 @@ text/media/reply posting, and local OAuth 2.0 PKCE login. Writes are hidden and
 disabled by default. Live OAuth, image upload, a post, and an image reply succeeded
 from local clients on 2026-10-08. Hosted ChatGPT publishing remains unverified.
 
-Verified on 2026-10-08: **52 Racket tests and 5 Python tests pass,
+Verified on 2026-10-09: **64 Racket tests and 6 Python tests pass,
 with zero skips**. A live X image passed through native Racket HTTPS, native
 image validation, and stdio MCP with identical bytes to the original prototype.
 The returned image was inspected visually during verification. Ordinary OAuth
@@ -34,7 +34,8 @@ returned by `fetch_x_media`. The user also confirmed an accessible generated
 image passes through `inspect_chatgpt_image` and returns visible image content.
 The tunnel is currently a local test runtime, not a boot-persistent deployment.
 A [sample systemd service](docs/deployment.md) is provided for deployment after launch.
-The expanded local suite passes 52 Racket cases and 5 Python tests.
+GitHub image retrieval passed live public and private canonical-image checks;
+hosted ChatGPT delivery still needs verification. See [GitHub setup](docs/github.md).
 See the [release checklist and backlog](docs/release.md) for launch gates.
 
 The connected official X MCP exposed reads and media URLs but no image-byte
@@ -53,8 +54,9 @@ racket racket/server.rkt
 ```
 
 Configure a local MCP client to launch `racket` with the absolute path to
-`racket/server.rkt` as its argument. Only `fetch_x_media` is exposed by default;
-it needs no token. The image-validation worker resolves its own source path and
+`racket/server.rkt` as its argument. `fetch_x_media` and `fetch_github_image` are exposed by default;
+public image reads need no token. Private GitHub access uses separate
+[GitHub credentials](docs/github.md). The image-validation worker resolves its own source path and
 uses the same Racket executable, independently of the client's working directory.
 
 ## Tools
@@ -62,6 +64,7 @@ uses the same Racket executable, independently of the client's working directory
 | Tool | Input | Result |
 | --- | --- | --- |
 | `fetch_x_media` | Direct HTTPS `pbs.twimg.com/media/` URL; optional post ID/media key | Original MCP image content, MIME, dimensions, size, provenance |
+| `fetch_github_image` | GitHub repository, file path, optional ref | Original MCP image content and verified blob SHA provenance |
 | `inspect_chatgpt_image` (opt-in) | ChatGPT file reference from an explicitly allowed host | Original MCP image content and metadata |
 | `upload_x_media` (writes enabled) | Raw base64 static JPEG/PNG or, with file inputs enabled, a ChatGPT file reference; at most 5 MiB | Media ID, optional media key and expiry |
 | `create_x_post` | Text and/or up to four image media IDs; optional reply ID | Post ID and URL |
@@ -139,7 +142,7 @@ Endpoints and scopes were checked on 2026-10-07 against X's
 
 ```sh
 raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt
-raco test racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt
+raco test racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt racket/github-tests.rkt
 ```
 
 Tests use synthetic fixtures. OAuth tests open localhost listeners; they never

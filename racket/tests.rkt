@@ -245,8 +245,8 @@
       (check-equal? (length replies) 2)
       (check-equal? (hash-ref (hash-ref (car replies) 'result) 'protocolVersion) "2025-11-25")
       (define tools (hash-ref (hash-ref (cadr replies) 'result) 'tools))
-      (check-equal? (length tools) 3)
-      (check-false (hash-ref (hash-ref (cadr tools) 'annotations) 'readOnlyHint))))
+      (check-equal? (length tools) 4)
+      (check-false (hash-ref (hash-ref (caddr tools) 'annotations) 'readOnlyHint))))
 
   (test-case "MCP rejects malformed input and uninitialized calls"
     (define output (open-output-string))
@@ -256,7 +256,7 @@
     (check-true (hash-has-key? (car (rpc (list (hasheq 'jsonrpc "2.0" 'id 1 'method "tools/list")))) 'error)))
 
   (test-case "safe tool validation, default read-only surface and unknown tools"
-    (check-equal? (map (lambda (t) (hash-ref t 'name)) (tool-list)) '("fetch_x_media"))
+    (check-equal? (map (lambda (t) (hash-ref t 'name)) (tool-list)) '("fetch_x_media" "fetch_github_image"))
     (check-exn exn:fail? (lambda () (call-tool "create_x_post" (hasheq 'text "no"))))
     (check-true (hash-ref (call-tool "fetch_x_media" (hasheq 'url "https://localhost/secret")) 'isError))
     (check-true (hash-ref (call-tool "fetch_x_media" (hasheq 'url 42)) 'isError))

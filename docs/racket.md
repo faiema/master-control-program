@@ -9,8 +9,10 @@ binding. Python remains only as an independent MCP client in development checks.
 
 | Module | Responsibility |
 | --- | --- |
-| `racket/server.rkt` | X tool schemas, annotations, validation, and dispatch |
+| `racket/server.rkt` | Tool schemas, annotations, validation, and dispatch |
 | `racket/http.rkt` | Official-host HTTPS, verified TLS, response bounds, no retries/redirects |
+| `racket/github-http.rkt` | Separate GitHub token and GET-only HTTPS transport, bounded safe errors |
+| `racket/github-media.rkt` | Repository image lookup, immutable blob retrieval and hash verification |
 | `racket/x-errors.rkt` | Bounded safe X/OAuth error summaries, operation names, status advice and retry timing |
 | `racket/media.rkt` | CDN URL allowlist, base64, provenance, unchanged image content |
 | `racket/chatgpt-file.rkt` | Opt-in ChatGPT file references, exact download-host allowlist, bounded credential-free downloads |

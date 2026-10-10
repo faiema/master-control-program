@@ -13,7 +13,8 @@ from mcp.client.stdio import stdio_client
 
 
 async def verify(url, output):
-    environment = dict(os.environ, MCP_X_ENABLE_WRITES="0")
+    environment = dict(os.environ, MCP_X_ENABLE_WRITES="0",
+                       MCP_CHATGPT_FILES="0", MCP_CHATGPT_FILE_HOSTS="")
     parameters = StdioServerParameters(
         command="racket",
         args=[str(Path(__file__).resolve().parents[1] / "racket/server.rkt")],
@@ -23,7 +24,7 @@ async def verify(url, output):
         async with ClientSession(reader, writer) as session:
             await session.initialize()
             listed = await session.list_tools()
-            assert [tool.name for tool in listed.tools] == ["fetch_x_media"]
+            assert [tool.name for tool in listed.tools] == ["fetch_x_media", "fetch_github_image"]
             result = await session.call_tool("fetch_x_media", {"url": url})
             if result.isError:
                 raise RuntimeError("; ".join(block.text for block in result.content if block.type == "text"))

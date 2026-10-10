@@ -277,7 +277,7 @@ The application is in `racket/`; generic components in `racket/lib/` contain no 
 policy. See `docs/racket.md` for boundaries and codec dependencies. Preserve the
 synthetic prototype contracts and cross-language MCP tests when changing behavior.
 Run `raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt` and
-`raco test racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt` and the Python unittest suite.
+`raco test racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt racket/github-tests.rkt` and the Python unittest suite.
 Native OAuth tests use localhost only, never live X. Read `docs/chatgpt.md` before
 changing the tunnel or file-reference path; signed file URLs must stay out of logs
 and results, and file downloads must never receive X credentials.
@@ -453,3 +453,11 @@ Preserve the project's actual goals and constraints while doing so.
 The north star is simple:
 
 **Let the robot see the picture, and let it post the picture when explicitly asked.**
+
+## GitHub images
+
+Read-only repository image retrieval is documented in `docs/github.md`. Keep
+GitHub credentials and transport separate from X and ChatGPT file downloads.
+Verify original bytes against the returned Git blob SHA; return actual MCP image
+content. Private access uses separate Contents: read authorization. Ordinary
+tests must not contact GitHub. Do not conflate image reads with issue #1 writes.

@@ -86,11 +86,24 @@ bounded request returns success or an error describing an uncertain outcome.
 Token rotation and storage-lock release finish before deferred cancellation.
 Tests cover running reads, port/subprocess cleanup, both write boundaries,
 malformed/unknown notifications, duplicate IDs, capacity, and refresh persistence.
-The current suite has 52 Racket tests and 5 Python tests. Hosted ChatGPT UI
+The cancellation change passed 52 Racket tests and 5 Python tests. Hosted ChatGPT UI
 cancellation behavior has not been separately verified.
+
+## GitHub image integration
+
+Read-only `fetch_github_image` is implemented for issue #2. A public repository
+image passed a live stdio MCP round trip and visual inspection on 2026-10-09.
+Private canonical-image retrieval also passed on 2026-10-10; hosted ChatGPT
+acceptance remains pending. See [GitHub setup and verification](github.md). Issue #1 text-write recovery is
+separate follow-up work.
 
 ## Follow-up work
 
+- Next: GitHub repository image uploads, explicitly requested on 2026-10-10.
+  Accept image bytes/file references, preserve the original image, and expose
+  the operation as a write with explicit destination and overwrite protection.
+  The current GitHub token grants read-only access; uploads need separate write
+  authorization. Keep this separate from issue #1 text-write recovery.
 - Durable deployment (**after launch**, explicitly deferred): install the tunnel outside `/tmp`, use a dedicated service
   account and a systemd unit, and test restart/reboot and credential expiry.
   No public inbound listener is needed for the private tunnel. A sample

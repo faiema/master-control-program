@@ -11,9 +11,10 @@ if [[ ! -x "$test_python" ]]; then
     exit 1
 fi
 # Test credentials and transports are synthetic. Clear ambient production settings.
+unset MCP_GITHUB_TOKEN
 unset X_ACCESS_TOKEN X_CLIENT_ID X_CLIENT_SECRET MCP_X_TOKEN_FILE
 unset MCP_CHATGPT_FILE_HOSTS MCP_CHATGPT_FILES MCP_X_ENABLE_WRITES
-raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt
+raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt racket/github-tests.rkt
 "$test_python" - <<'PY'
 import sys
 import unittest

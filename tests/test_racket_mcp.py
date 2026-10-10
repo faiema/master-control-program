@@ -45,7 +45,7 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
         async def check(session):
             await session.send_ping()
             tools = (await session.list_tools()).tools
-            self.assertEqual([tool.name for tool in tools], ["fetch_x_media"])
+            self.assertEqual([tool.name for tool in tools], ["fetch_x_media", "fetch_github_image"])
             self.assertTrue(tools[0].annotations.readOnlyHint)
             result = await session.call_tool("fetch_x_media", {"url": "https://localhost/secret"})
             self.assertTrue(result.isError)
@@ -68,7 +68,7 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
     async def test_mocked_write_contracts_and_annotations(self):
         async def check(session):
             tools = {tool.name: tool for tool in (await session.list_tools()).tools}
-            self.assertEqual(set(tools), {"fetch_x_media", "upload_x_media", "create_x_post"})
+            self.assertEqual(set(tools), {"fetch_x_media", "fetch_github_image", "upload_x_media", "create_x_post"})
             for name in ["upload_x_media", "create_x_post"]:
                 self.assertFalse(tools[name].annotations.readOnlyHint)
                 self.assertFalse(tools[name].annotations.idempotentHint)
@@ -103,3 +103,22 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(json.loads(uploaded.content[0].text), CONTRACTS["upload_result"])
 
         await self.with_server(check, fixture=True, writes=True, files=True)
+
+    async def test_github_image_content_and_provenance(self):
+        import hashlib
+
+        async def check(session):
+            result = await session.call_tool("fetch_github_image", {
+                "repository_full_name": "owner/repo", "path": "face.png", "ref": "main"})
+            self.assertFalse(result.isError)
+            metadata = json.loads(result.content[0].text)
+            raw = png()
+            expected = hashlib.sha1(f"blob {len(raw)}\0".encode() + raw).hexdigest()
+            self.assertEqual(metadata["blob_sha"], expected)
+            self.assertEqual(metadata["path"], "face.png")
+            self.assertEqual(metadata["ref"], "main")
+            self.assertEqual(result.content[1].type, "image")
+            self.assertEqual(result.content[1].mimeType, "image/png")
+            self.assertEqual(base64.b64decode(result.content[1].data), raw)
+
+        await self.with_server(check, fixture=True)

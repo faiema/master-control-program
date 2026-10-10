@@ -1,7 +1,7 @@
 #lang racket/base
 ;; SPDX-License-Identifier: AGPL-3.0-only
 
-(require json racket/list "common.rkt" "media.rkt" "x-api.rkt" "chatgpt-file.rkt" "lib/mcp-stdio.rkt")
+(require json racket/list "common.rkt" "media.rkt" "github-media.rkt" "x-api.rkt" "chatgpt-file.rkt" "lib/mcp-stdio.rkt")
 (provide serve tool-list call-tool)
 
 (define string-schema (hasheq 'type "string"))
@@ -19,6 +19,11 @@
                  'description "See an X image: pass a pbs.twimg.com/media URL from the official X MCP. Returns original image content and provenance. Optional IDs are caller-provided, not verified."
                  'inputSchema (schema (hasheq 'url string-schema 'post_id optional-string-schema
                                                'media_key optional-string-schema) '("url"))
+                 'annotations (annotations #f))
+         (hasheq 'name "fetch_github_image"
+                 'description "Read an original PNG/JPEG/WebP from a GitHub repository (max 5 MiB). Returns actual image content and verified blob provenance. Optional ref selects a branch, tag, or commit; private repositories require server-side GitHub credentials."
+                 'inputSchema (schema (hasheq 'repository_full_name string-schema 'path string-schema
+                                               'ref optional-string-schema) '("repository_full_name" "path"))
                  'annotations (annotations #f)))
    (if files?
        (list (hasheq 'name "inspect_chatgpt_image"
@@ -64,14 +69,17 @@
         (bridge-error "Validation: a required tool argument is missing.")))
     (for ([(key value) (in-hash arguments)])
       (unless (case key
-                [(url text image_base64) (string? value)]
+                [(url text image_base64 repository_full_name path) (string? value)]
                 [(file) (hash? value)]
-                [(post_id media_key reply_to) (or (string? value) (eq? value 'null))]
+                [(post_id media_key reply_to ref) (or (string? value) (eq? value 'null))]
                 [(media_ids) (or (eq? value 'null) (and (list? value) (andmap string? value)))])
         (bridge-error "Validation: tool argument has the wrong type.")))
     (cond
       [(equal? name "fetch_x_media")
        (fetch-result (hash-ref arguments 'url) (hash-ref arguments 'post_id 'null) (hash-ref arguments 'media_key 'null))]
+      [(equal? name "fetch_github_image")
+       (fetch-github-image (hash-ref arguments 'repository_full_name) (hash-ref arguments 'path)
+                           (hash-ref arguments 'ref 'null))]
       [(equal? name "inspect_chatgpt_image") (inspect-chatgpt-image (hash-ref arguments 'file))]
       [(equal? name "upload_x_media")
        (unless (= 1 (+ (if (hash-has-key? arguments 'file) 1 0)
