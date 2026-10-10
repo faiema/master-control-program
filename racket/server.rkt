@@ -1,7 +1,7 @@
 #lang racket/base
 ;; SPDX-License-Identifier: AGPL-3.0-only
 
-(require json racket/list "common.rkt" "media.rkt" "github-media.rkt" "x-api.rkt" "chatgpt-file.rkt" "lib/mcp-stdio.rkt")
+(require json racket/list "common.rkt" "media.rkt" "github-media.rkt" "github-upload.rkt" "x-api.rkt" "chatgpt-file.rkt" "lib/mcp-stdio.rkt")
 (provide serve tool-list call-tool)
 
 (define string-schema (hasheq 'type "string"))
@@ -31,6 +31,23 @@
                      'inputSchema (schema (hasheq 'file file-schema) '("file"))
                      '_meta (hasheq 'openai/fileParams '("file"))
                      'annotations (annotations #f)))
+       '())
+   (if (current-github-writes-enabled)
+       (list
+        (hasheq 'name "upload_github_image"
+                'description "WRITE: commit an original PNG/JPEG/WebP (max 5 MiB) to an explicitly chosen GitHub repository, branch and path. Requires user authorization. Omit expected_sha to create only; supply the current blob SHA to authorize replacement. Supply exactly one image source. Never transcribe base64 or retry an uncertain commit blindly."
+                'inputSchema
+                (let* ([properties (hasheq 'repository_full_name string-schema 'path string-schema
+                                          'branch string-schema 'message string-schema
+                                          'expected_sha optional-string-schema 'image_base64 string-schema)]
+                       [base (schema (if files? (hash-set properties 'file file-schema) properties)
+                                     '("repository_full_name" "path" "branch" "message"))])
+                  (if files?
+                      (hash-set base 'oneOf (list (hasheq 'required '("image_base64"))
+                                                  (hasheq 'required '("file"))))
+                      (hash-set base 'required '("repository_full_name" "path" "branch" "message" "image_base64"))))
+                '_meta (if files? (hasheq 'openai/fileParams '("file")) (hasheq))
+                'annotations (annotations #t)))
        '())
    (if (current-writes-enabled)
        (list
@@ -69,9 +86,9 @@
         (bridge-error "Validation: a required tool argument is missing.")))
     (for ([(key value) (in-hash arguments)])
       (unless (case key
-                [(url text image_base64 repository_full_name path) (string? value)]
+                [(url text image_base64 repository_full_name path branch message) (string? value)]
                 [(file) (hash? value)]
-                [(post_id media_key reply_to ref) (or (string? value) (eq? value 'null))]
+                [(post_id media_key reply_to ref expected_sha) (or (string? value) (eq? value 'null))]
                 [(media_ids) (or (eq? value 'null) (and (list? value) (andmap string? value)))])
         (bridge-error "Validation: tool argument has the wrong type.")))
     (cond
@@ -81,6 +98,13 @@
        (fetch-github-image (hash-ref arguments 'repository_full_name) (hash-ref arguments 'path)
                            (hash-ref arguments 'ref 'null))]
       [(equal? name "inspect_chatgpt_image") (inspect-chatgpt-image (hash-ref arguments 'file))]
+      [(equal? name "upload_github_image")
+       (text-result
+        (upload-github-image (hash-ref arguments 'repository_full_name) (hash-ref arguments 'path)
+                             (hash-ref arguments 'branch) (hash-ref arguments 'message)
+                             #:image-base64 (hash-ref arguments 'image_base64 #f)
+                             #:file (hash-ref arguments 'file #f)
+                             #:expected-sha (hash-ref arguments 'expected_sha 'null)))]
       [(equal? name "upload_x_media")
        (unless (= 1 (+ (if (hash-has-key? arguments 'file) 1 0)
                        (if (hash-has-key? arguments 'image_base64) 1 0)))
@@ -98,7 +122,8 @@
                #:input input #:output output))
 
 (module+ main
-  (parameterize ([current-writes-enabled (equal? (getenv "MCP_X_ENABLE_WRITES") "1")]
+  (parameterize ([current-github-writes-enabled (equal? (getenv "MCP_GITHUB_ENABLE_WRITES") "1")]
+                 [current-writes-enabled (equal? (getenv "MCP_X_ENABLE_WRITES") "1")]
                  [current-file-inputs-enabled (equal? (getenv "MCP_CHATGPT_FILES") "1")]
                  [current-file-hosts (file-hosts-from-environment)])
     (serve)))

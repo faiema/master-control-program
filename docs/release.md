@@ -93,17 +93,17 @@ cancellation behavior has not been separately verified.
 
 Read-only `fetch_github_image` is implemented for issue #2. A public repository
 image passed a live stdio MCP round trip and visual inspection on 2026-10-09.
-Private canonical-image retrieval also passed on 2026-10-10; hosted ChatGPT
-acceptance remains pending. See [GitHub setup and verification](github.md). Issue #1 text-write recovery is
+Private canonical-image retrieval also passed on 2026-10-10. The user later
+confirmed hosted ChatGPT upload, fetch-back, and visual inspection. See [GitHub setup and verification](github.md). Issue #1 text-write recovery is
 separate follow-up work.
 
 ## Follow-up work
 
-- Next: GitHub repository image uploads, explicitly requested on 2026-10-10.
-  Accept image bytes/file references, preserve the original image, and expose
-  the operation as a write with explicit destination and overwrite protection.
-  The current GitHub token grants read-only access; uploads need separate write
-  authorization. Keep this separate from issue #1 text-write recovery.
+- GitHub repository image uploads are implemented behind `MCP_GITHUB_ENABLE_WRITES=1`.
+  Synthetic tests cover create-only and SHA-protected replacement commits, image
+  preservation, errors, cancellation and MCP file handoff. On 2026-10-10 the user
+  confirmed a live upload, fetch-back, and visible image in another ChatGPT
+  conversation. The exact commit receipt was not supplied in this thread.
 - Durable deployment (**after launch**, explicitly deferred): install the tunnel outside `/tmp`, use a dedicated service
   account and a systemd unit, and test restart/reboot and credential expiry.
   No public inbound listener is needed for the private tunnel. A sample

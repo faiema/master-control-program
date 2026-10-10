@@ -20,16 +20,18 @@ def png():
 
 @unittest.skipUnless(shutil.which("racket") and importlib.util.find_spec("mcp"), "Racket and MCP SDK required")
 class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
-    async def with_server(self, callback, *, fixture=False, writes=False, files=False):
+    async def with_server(self, callback, *, fixture=False, writes=False, files=False, github_writes=False, readonly_launcher=False):
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
 
         async def exercise():
             parameters = StdioServerParameters(
-                command="racket",
-                args=[str(ROOT / ("tests/racket-stdio-fixture.rkt" if fixture else "racket/server.rkt"))],
+                command="bash" if readonly_launcher else "racket",
+                args=[str(ROOT / ("scripts/serve-chatgpt-readonly" if readonly_launcher else
+                                  "tests/racket-stdio-fixture.rkt" if fixture else "racket/server.rkt"))],
                 env=dict(os.environ, MCP_X_ENABLE_WRITES="1" if writes else "0",
                          MCP_CHATGPT_FILES="1" if files else "0",
+                         MCP_GITHUB_ENABLE_WRITES="1" if github_writes else "0",
                          MCP_CHATGPT_FILE_HOSTS="files.example.test" if files else ""),
             )
             async with stdio_client(parameters) as (reader, writer):
@@ -122,3 +124,50 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(base64.b64decode(result.content[1].data), raw)
 
         await self.with_server(check, fixture=True)
+
+    async def test_github_upload_create_replace_and_file_handoff(self):
+        async def check(session):
+            tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+            self.assertNotIn("upload_x_media", tools)
+            tool = tools["upload_github_image"]
+            self.assertFalse(tool.annotations.readOnlyHint)
+            self.assertFalse(tool.annotations.idempotentHint)
+            self.assertTrue(tool.annotations.destructiveHint)
+            self.assertEqual(tool.model_dump(by_alias=True)["_meta"]["openai/fileParams"], ["file"])
+            destination = dict(repository_full_name="owner/repo", path="face.png", branch="art", message="Add reference")
+            sources = [dict(image_base64=IMAGES["png"]), dict(file={
+                "download_url": "https://files.example.test/image?signature=synthetic-secret",
+                "file_id": "synthetic-file", "mime_type": "image/png"})]
+            for source in sources:
+                for sha in [None, "b" * 40]:
+                    result = await session.call_tool("upload_github_image", dict(destination, **source, expected_sha=sha))
+                    self.assertFalse(result.isError)
+                    metadata = json.loads(result.content[0].text)
+                    self.assertEqual(metadata["commit_sha"], "a" * 40)
+                    self.assertEqual(metadata["operation"], "replace" if sha else "create")
+                    self.assertNotIn("synthetic-secret", result.model_dump_json())
+            both = await session.call_tool("upload_github_image", dict(destination, **sources[0], **sources[1]))
+            self.assertTrue(both.isError)
+
+        await self.with_server(check, fixture=True, files=True, github_writes=True)
+
+    async def test_github_upload_base64_schema_without_files(self):
+        async def check(session):
+            tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+            self.assertNotIn("file", tools["upload_github_image"].inputSchema["properties"])
+            result = await session.call_tool("upload_github_image", {
+                "repository_full_name": "owner/repo", "path": "face.png", "branch": "art",
+                "message": "Add reference", "image_base64": IMAGES["png"]})
+            self.assertFalse(result.isError)
+
+        await self.with_server(check, fixture=True, github_writes=True)
+
+    async def test_readonly_launcher_overrides_both_write_flags(self):
+        async def check(session):
+            tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+            self.assertNotIn("upload_github_image", tools)
+            self.assertNotIn("upload_x_media", tools)
+            self.assertNotIn("create_x_post", tools)
+            self.assertIn("fetch_github_image", tools)
+
+        await self.with_server(check, writes=True, github_writes=True, readonly_launcher=True)

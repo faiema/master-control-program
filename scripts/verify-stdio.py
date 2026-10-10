@@ -13,7 +13,7 @@ from mcp.client.stdio import stdio_client
 
 
 async def verify(url, output):
-    environment = dict(os.environ, MCP_X_ENABLE_WRITES="0",
+    environment = dict(os.environ, MCP_X_ENABLE_WRITES="0", MCP_GITHUB_ENABLE_WRITES="0",
                        MCP_CHATGPT_FILES="0", MCP_CHATGPT_FILE_HOSTS="")
     parameters = StdioServerParameters(
         command="racket",

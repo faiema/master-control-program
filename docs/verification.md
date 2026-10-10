@@ -2,7 +2,7 @@
 
 ## Current summary — 2026-10-10
 
-The latest checks passed 64 Racket cases and 6 Python tests (including independent
+The latest checks passed 74 Racket cases and 9 Python tests (including independent
 MCP client tests and cross-process token refresh);
 all passed, with no skips. Live OAuth, upload, posting, and an image reply have
 succeeded from local clients. Hosted ChatGPT image retrieval/inspection is
@@ -178,4 +178,10 @@ publishing or the deferred systemd deployment. No release tag was created.
 
 GitHub repository images: public native-HTTPS → stdio-MCP → visual inspection
 passed on 2026-10-09. Private canonical-image retrieval and visual inspection also passed on
-2026-10-10; hosted ChatGPT acceptance remains pending. See [GitHub verification](github.md#verification).
+2026-10-10. The user subsequently confirmed hosted ChatGPT upload, fetch-back,
+and visual inspection; the exact commit receipt was not supplied here. See [GitHub verification](github.md#verification).
+
+GitHub upload tests cover create-only and SHA-protected replacement requests,
+PNG/JPEG/WebP preservation, file handoff, independent write gates, read-only
+launcher overrides, cancellation boundaries, conflicts and uncertain results.
+All uploads in these tests are synthetic; no live GitHub commit is claimed.

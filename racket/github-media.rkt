@@ -3,13 +3,13 @@
 
 (require file/sha1 json net/uri-codec racket/string
          "common.rkt" "media.rkt" "github-http.rkt")
-(provide fetch-github-image github-blob-sha)
+(provide fetch-github-image github-blob-sha github-file-target)
 
 (define (github-blob-sha raw)
   (sha1 (open-input-bytes
          (bytes-append (string->bytes/utf-8 (format "blob ~a\u0000" (bytes-length raw))) raw))))
 
-(define (fetch-github-image repository path [ref 'null])
+(define (github-file-target repository path [ref 'null])
   (unless (and (string? repository) (<= (string-length repository) 256)
                (regexp-match? #px"^[A-Za-z0-9][A-Za-z0-9-]*/[A-Za-z0-9_.-]+$" repository)
                (not (member (cadr (string-split repository "/")) '("." ".."))))
@@ -28,6 +28,11 @@
     (string-append root "/contents/"
                    (string-join (map uri-encode (string-split path "/")) "/")
                    (if (eq? ref 'null) "" (string-append "?ref=" (uri-encode ref)))))
+  target)
+
+(define (fetch-github-image repository path [ref 'null])
+  (define target (github-file-target repository path ref))
+  (define root (string-append "/repos/" repository))
   (define metadata
     (with-handlers ([exn:fail:bridge? raise]
                     [exn:fail? (lambda (_) (bridge-error "GitHub: invalid file metadata response."))])

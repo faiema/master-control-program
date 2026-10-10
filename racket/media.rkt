@@ -58,14 +58,14 @@
     (bridge-error "Media: Content-Type does not match the image bytes."))
   metadata)
 
-(define (decode-upload value)
+(define (decode-upload value #:allow-webp? [allow-webp? #f])
   (unless (and (string? value) (<= (string-length value) (* 4 (quotient (+ max-image-bytes 2) 3))))
     (bridge-error "Validation: base64 image exceeds the local 5 MiB limit or is not a string."))
   (unless (regexp-match? #px"^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$" value)
     (bridge-error "Validation: expected raw base64 image bytes, not a data URL."))
   (define raw (base64-decode (string->bytes/utf-8 value)))
   (define metadata (inspect-image raw))
-  (when (equal? (hash-ref metadata 'mime_type) "image/webp")
+  (when (and (not allow-webp?) (equal? (hash-ref metadata 'mime_type) "image/webp"))
     (bridge-error "Upload: use JPEG or PNG; WebP upload is not supported by this adapter."))
   (values raw metadata))
 

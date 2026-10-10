@@ -160,4 +160,12 @@ healthy/ready; GitHub credential presence in its Racket child was verified witho
 printing the token. A separate local stdio MCP client retrieved the private
 canonical image successfully, and the original image was visually inspected.
 See [GitHub verification](github.md#verification). Refresh tool discovery for
-`fetch_github_image`; hosted ChatGPT image delivery still needs confirmation.
+`fetch_github_image` after adding the tool.
+
+GitHub image uploads were subsequently enabled with `MCP_GITHUB_ENABLE_WRITES=1`
+in the private launcher. The restarted tunnel reported healthy/ready, and local
+MCP discovery through that launcher confirmed `upload_github_image` has write
+annotations and ChatGPT file input. The user reports the existing token has
+read/write permission. The user subsequently confirmed that upload, fetch-back,
+and visual inspection all succeeded in another ChatGPT conversation on
+2026-10-10. The exact commit receipt and client platform were not supplied here.

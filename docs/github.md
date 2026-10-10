@@ -54,8 +54,8 @@ or revoked tokens locally. GitHub App tokens can also be supplied, but automatic
 App token minting is not implemented. A 404 can mean an inaccessible private
 repository as well as an incorrect path or ref.
 
-Credentials go only to `api.github.com` over verified HTTPS. Requests are GET-only;
-no redirects, upstream download URLs, X tokens, or file-service credentials are
+Credentials go only to `api.github.com` over verified HTTPS. Reads use GET; enabled image uploads use PUT to the contents endpoint.
+No redirects, upstream download URLs, X tokens, or file-service credentials are
 used. Raw upstream error bodies and headers are not exposed. The server remains
 single-owner: any connected client can read repositories accessible to its token.
 
@@ -86,9 +86,9 @@ Python stdio MCP client. The returned PNG was visually inspected: 1145×1374,
 2,228,365 bytes, blob `832a265c63db7d3e23411a79ad5e394505ced111`.
 The private launcher now loads a mode-0600, Git-ignored GitHub credential file.
 The tunnel was restarted and reported healthy/ready; the Racket child's GitHub
-credential presence was verified without printing its value. Hosted ChatGPT
-image retrieval and renderer handoff still need acceptance testing; issue #2
-remains open for those client checks.
+credential presence was verified without printing its value. Later that day, the
+user confirmed a successful upload, fetch-back, and visible image in another
+ChatGPT conversation. Image-generation/editing reuse remains unverified.
 
 The implementation follows GitHub's
 [contents API](https://docs.github.com/en/rest/repos/contents#get-repository-content)
@@ -96,3 +96,60 @@ and [raw blob API](https://docs.github.com/en/rest/git/blobs#get-a-blob), checke
 2026-10-09. The contents API can intentionally return empty content above 1 MB;
 the raw blob request avoids that limitation. Local limits remain smaller than
 GitHub's maximum blob size.
+
+## Upload an image to a repository
+
+`upload_github_image` creates a real Git commit containing one original image.
+Enable it with `MCP_GITHUB_ENABLE_WRITES=1` in the server environment and provide
+`MCP_GITHUB_TOKEN` with **Contents: read and write** on the destination repository.
+This setting is independent of `MCP_X_ENABLE_WRITES`; both default off. The
+read-only launcher overrides both flags. The user reports the existing local
+GitHub token has read/write access, and subsequently confirmed a successful live
+upload in another ChatGPT conversation.
+
+Required arguments:
+
+- `repository_full_name`: owner/repository.
+- `path`: destination ending in .png, .jpg/.jpeg, or .webp matching the actual image.
+- `branch`: explicit existing destination branch.
+- `message`: Git commit message.
+- Exactly one source: `image_base64`, or `file` when ChatGPT file input is enabled.
+
+Optional `expected_sha` authorizes replacement of that exact current blob.
+Omit it (or pass null) for create-only. GitHub rejects creation at an existing
+path without its SHA, and rejects stale replacement SHAs. Never fetch a SHA merely
+to turn a failed create into an unauthorized overwrite. An expected SHA protects
+that file's content, not the whole branch history. Protected branches and token
+restrictions remain enforced by GitHub. No branch creation, PR creation,
+multi-file transaction, issue attachment, Git LFS upload, or text fallback is
+implemented by this tool.
+
+Static PNG/JPEG/WebP up to 5 MiB and 40 megapixels are decoded for validation and
+committed unchanged. ChatGPT file inputs use the same exact-host allowlist and
+credential-free downloader as other file tools. The upload returns MIME,
+dimensions, byte count, blob SHA, commit SHA, and an immutable GitHub file URL.
+No image bytes, signed download URL, or token appear in the receipt.
+
+A timeout or invalid response can leave an uncertain commit. The tool never
+retries automatically, even after a conflict. Inspect the destination before
+retrying. Cancellation before submission stops the operation; once submission
+starts the bounded request finishes so it can report the result. Cancellation
+cannot undo a commit. Use uploads serially for a branch to avoid conflicting
+contents operations.
+
+Example instruction for another conversation, with the image attached and this
+MCP enabled:
+
+> Use upload_github_image to commit this image to OWNER/REPO on branch BRANCH at
+> images/reference.png, with commit message "Add reference image". Create only;
+> do not replace an existing file. Use the attached file directly.
+
+If the path already exists, ask the user whether replacement is intended before
+supplying its current blob SHA. Agents must not transcribe base64 by hand.
+
+Implementation follows GitHub's [create/update contents API](https://docs.github.com/en/rest/repos/contents#create-or-update-file-contents),
+checked 2026-10-10. Ordinary tests use synthetic writes only. On 2026-10-10 the
+user confirmed that uploading in another ChatGPT conversation, fetching the image
+back, and visually inspecting it all succeeded. The exact destination, commit
+receipt, hash comparison, and client platform were not supplied in this thread;
+this is user-confirmed acceptance, not an independently inspected commit receipt.

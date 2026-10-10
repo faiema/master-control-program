@@ -11,7 +11,8 @@ binding. Python remains only as an independent MCP client in development checks.
 | --- | --- |
 | `racket/server.rkt` | Tool schemas, annotations, validation, and dispatch |
 | `racket/http.rkt` | Official-host HTTPS, verified TLS, response bounds, no retries/redirects |
-| `racket/github-http.rkt` | Separate GitHub token and GET-only HTTPS transport, bounded safe errors |
+| `racket/github-http.rkt` | Separate GitHub token and GET/contents-PUT HTTPS transport, bounded safe errors |
+| `racket/github-upload.rkt` | Independent GitHub write gate, image validation, create/replace payload and commit receipt |
 | `racket/github-media.rkt` | Repository image lookup, immutable blob retrieval and hash verification |
 | `racket/x-errors.rkt` | Bounded safe X/OAuth error summaries, operation names, status advice and retry timing |
 | `racket/media.rkt` | CDN URL allowlist, base64, provenance, unchanged image content |

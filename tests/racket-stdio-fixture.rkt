@@ -2,7 +2,7 @@
 ;; SPDX-License-Identifier: AGPL-3.0-only
 
 ;; Test-only entrypoint: production server.rkt has no fixture/network override.
-(require "../racket/github-http.rkt" "../racket/github-media.rkt" json net/base64 "../racket/common.rkt" "../racket/http.rkt"
+(require "../racket/github-upload.rkt" "../racket/github-http.rkt" "../racket/github-media.rkt" json net/base64 "../racket/common.rkt" "../racket/http.rkt"
          "../racket/auth.rkt" "../racket/server.rkt" "../racket/x-api.rkt" "../racket/chatgpt-file.rkt")
 (define png (base64-decode #"iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAIAAAASFvFNAAAAEElEQVR4nGP8zwAFTDAGAwATKQED8NgHhAAAAABJRU5ErkJggg=="))
 (define (fixture-transport url #:method [method "GET"] #:headers [headers (hash)] #:body [body #f] #:limit limit)
@@ -18,9 +18,17 @@
        (error 'fixture "Unexpected post body"))
      (values (hash) #"{\"data\":{\"id\":\"789\"}}")]
     [else (error 'fixture "Unexpected URL; test never uses live HTTP")]))
-(parameterize ([current-github-request
-                (lambda (target accept limit)
+(parameterize ([current-github-writes-enabled (equal? (getenv "MCP_GITHUB_ENABLE_WRITES") "1")]
+               [current-github-request
+                (lambda (target accept limit #:payload [payload #f])
                   (cond
+                    [payload
+                     (unless (and (equal? target "/repos/owner/repo/contents/face.png")
+                                  (equal? (hash-ref payload 'branch) "art")
+                                  (equal? (hash-ref payload 'content) (bytes->string/utf-8 (base64-encode png #""))))
+                       (error 'fixture "Unexpected GitHub upload"))
+                     (jsexpr->bytes (hasheq 'content (hasheq 'path "face.png" 'sha (github-blob-sha png))
+                                           'commit (hasheq 'sha (make-string 40 #\a))))]
                     [(equal? target "/repos/owner/repo/contents/face.png?ref=main")
                      (jsexpr->bytes (hasheq 'type "file" 'path "face.png"
                                            'size (bytes-length png) 'sha (github-blob-sha png)))]

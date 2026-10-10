@@ -69,7 +69,7 @@
     (for ([token (list #f "synthetic_github_token")])
       (parameterize ([current-github-token (lambda () token)]
                      [current-github-sendrecv
-                      (lambda (host target #:ssl? ssl #:content-decode decode #:headers headers)
+                      (lambda (host target #:ssl? ssl #:content-decode decode #:headers headers #:method method #:data body)
                         (check-equal? host "api.github.com")
                         (check-equal? (filter (lambda (h) (string-prefix? h "Authorization:")) headers)
                                       (if token '("Authorization: Bearer synthetic_github_token") '()))
@@ -98,7 +98,7 @@
   (test-case "transport exceptions hide credentials and redirects are never followed"
     (parameterize ([current-github-token (lambda () "synthetic_token")]
                    [current-github-sendrecv
-                    (lambda (host target #:ssl? ssl #:content-decode decode #:headers headers)
+                    (lambda (host target #:ssl? ssl #:content-decode decode #:headers headers #:method method #:data body)
                       (error "SECRET transport diagnostic"))])
       (check-exn (lambda (e) (and (exn:fail:bridge? e)
                                  (not (regexp-match? #rx"SECRET|synthetic_token" (exn-message e)))))
@@ -106,7 +106,7 @@
     (define calls 0)
     (parameterize ([current-github-token (lambda () #f)]
                    [current-github-sendrecv
-                    (lambda (host target #:ssl? ssl #:content-decode decode #:headers headers)
+                    (lambda (host target #:ssl? ssl #:content-decode decode #:headers headers #:method method #:data body)
                       (set! calls (add1 calls))
                       (values #"HTTP/1.1 302 Found" '(#"Location: https://other.invalid/secret")
                               (open-input-bytes #"")))])

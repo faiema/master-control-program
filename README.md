@@ -19,7 +19,7 @@ text/media/reply posting, and local OAuth 2.0 PKCE login. Writes are hidden and
 disabled by default. Live OAuth, image upload, a post, and an image reply succeeded
 from local clients on 2026-10-08. Hosted ChatGPT publishing remains unverified.
 
-Verified on 2026-10-09: **64 Racket tests and 6 Python tests pass,
+Verified on 2026-10-10: **74 Racket tests and 9 Python tests pass,
 with zero skips**. A live X image passed through native Racket HTTPS, native
 image validation, and stdio MCP with identical bytes to the original prototype.
 The returned image was inspected visually during verification. Ordinary OAuth
@@ -35,12 +35,18 @@ image passes through `inspect_chatgpt_image` and returns visible image content.
 The tunnel is currently a local test runtime, not a boot-persistent deployment.
 A [sample systemd service](docs/deployment.md) is provided for deployment after launch.
 GitHub image retrieval passed live public and private canonical-image checks;
-hosted ChatGPT delivery still needs verification. See [GitHub setup](docs/github.md).
+the user also confirmed hosted ChatGPT upload, fetch-back, and visual inspection. See [GitHub setup](docs/github.md).
 See the [release checklist and backlog](docs/release.md) for launch gates.
 
 The connected official X MCP exposed reads and media URLs but no image-byte
 retrieval, media upload, or post creation when last checked. Re-check that surface
 before extending this sidecar. Personal content and credentials are not committed.
+
+## Installation for Bakas (by Faie)
+
+1. Point ChatGPT at this repo.
+2. Explain what you want to make happen.
+3. Do what he tells you.
 
 ## Run
 
@@ -65,6 +71,7 @@ uses the same Racket executable, independently of the client's working directory
 | --- | --- | --- |
 | `fetch_x_media` | Direct HTTPS `pbs.twimg.com/media/` URL; optional post ID/media key | Original MCP image content, MIME, dimensions, size, provenance |
 | `fetch_github_image` | GitHub repository, file path, optional ref | Original MCP image content and verified blob SHA provenance |
+| `upload_github_image` (GitHub writes enabled) | Repository, path, branch, message; image bytes/file; optional expected blob SHA | Commit SHA, verified blob SHA and file URL |
 | `inspect_chatgpt_image` (opt-in) | ChatGPT file reference from an explicitly allowed host | Original MCP image content and metadata |
 | `upload_x_media` (writes enabled) | Raw base64 static JPEG/PNG or, with file inputs enabled, a ChatGPT file reference; at most 5 MiB | Media ID, optional media key and expiry |
 | `create_x_post` | Text and/or up to four image media IDs; optional reply ID | Post ID and URL |
@@ -83,6 +90,10 @@ programmatically; do not ask an LLM to transcribe image data. Convenient generat
 image handoff for hosted ChatGPT uses the optional file-reference input described
 in [docs/chatgpt.md](docs/chatgpt.md). This path has been verified with an accessible
 generated image; a failed generation with no accessible file cannot be passed.
+
+GitHub image uploads create a real commit and require `MCP_GITHUB_ENABLE_WRITES=1`
+plus a token with Contents: write. They create only by default; replacement
+requires the current blob SHA. See [GitHub upload setup](docs/github.md#upload-an-image-to-a-repository).
 
 ## Authentication and writes
 
@@ -142,7 +153,7 @@ Endpoints and scopes were checked on 2026-10-07 against X's
 
 ```sh
 raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt
-raco test racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt racket/github-tests.rkt
+raco test racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt racket/github-tests.rkt racket/github-upload-tests.rkt
 ```
 
 Tests use synthetic fixtures. OAuth tests open localhost listeners; they never
