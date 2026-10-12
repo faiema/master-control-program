@@ -32,7 +32,7 @@
                  'annotations (annotations #f)))
    (if (current-github-writes-enabled)
        (list (hasheq 'name "upload_github_text"
-                     'description "WRITE: commit exact UTF-8 text (max 1 MiB) on explicit user authorization. Omit expected_sha for create-only; replacement requires the current blob SHA. Optional idempotency_key requires persistent server journal configuration. Never resubmit an uncertain write with a new key. Cannot bypass upstream policy enforcement."
+                     'description "WRITE: commit exact UTF-8 text (max 1 MiB) on explicit user authorization. Omit expected_sha for create-only; replacement requires the current blob SHA. Optional idempotency_key requires persistent server journal configuration. Never blindly retry an uncertain write or change keys to evade duplicate-write protection. This tool applies its own authorization and safety requirements."
                      'inputSchema (schema (hasheq 'repository_full_name string-schema 'path string-schema
                                                    'branch string-schema 'message string-schema 'content string-schema
                                                    'expected_sha optional-string-schema 'idempotency_key optional-string-schema
@@ -40,7 +40,7 @@
                                           '("repository_full_name" "path" "branch" "message" "content"))
                      'annotations (annotations #t))
              (hasheq 'name "patch_github_text"
-                     'description "WRITE: apply an authorized literal edit to an existing UTF-8 file (max 1 MiB). Requires expected_sha. replace_exact uses one unique anchor and replacement; insert_after uses one unique anchor and content; append uses content only. No normalization. Optional idempotency_key prevents duplicate submissions; request_id correlates logs. Never retry uncertain writes with a new key or reroute an explicitly policy-blocked edit through this tool."
+                     'description "WRITE: apply an authorized literal edit to an existing UTF-8 file (max 1 MiB). Requires expected_sha. replace_exact uses one unique anchor and replacement; insert_after uses one unique anchor and content; append uses content only. No normalization. Optional idempotency_key prevents duplicate submissions; request_id correlates logs. Never blindly retry an uncertain write or change keys to evade duplicate-write protection. This tool applies its own authorization and safety requirements."
                      'inputSchema
                      (schema (hasheq 'repository_full_name string-schema 'path string-schema
                                      'branch string-schema 'message string-schema 'expected_sha string-schema

@@ -3,7 +3,7 @@
 
 (require json net/base64 rackunit racket/file racket/list racket/port racket/runtime-path
          "auth.rkt" "common.rkt" "http.rkt" "media.rkt" "server.rkt" "x-api.rkt"
-         "x-errors.rkt"
+         "x-errors.rkt" (only-in "github-upload.rkt" current-github-writes-enabled)
          (prefix-in codec: "lib/image.rkt"))
 
 ;; Synthetic 3x2 red PNG, also used by the Python contract tests.
@@ -33,6 +33,22 @@
 (define initialized (hasheq 'jsonrpc "2.0" 'method "notifications/initialized"))
 
 (module+ test
+  (test-case "text write metadata states local requirements and retry protection"
+    (parameterize ([current-github-writes-enabled #t])
+      (define responses
+        (rpc (list initialize initialized
+                   (hasheq 'jsonrpc "2.0" 'id 2 'method "tools/list"))))
+      (define listed (hash-ref (hash-ref (last responses) 'result) 'tools))
+      (for ([name '("upload_github_text" "patch_github_text")])
+        (define tool (findf (lambda (t) (equal? (hash-ref t 'name) name)) listed))
+        (define description (hash-ref tool 'description))
+        (check-regexp-match #rx"own authorization and safety requirements" description)
+        (check-regexp-match #rx"Never blindly retry an uncertain write" description)
+        (check-regexp-match #rx"change keys to evade duplicate-write protection" description)
+        (check-regexp-match #rx"expected_sha" description)
+        (check-false (regexp-match? #rx"upstream policy|reroute|policy-blocked" description))
+        (check-false (hash-ref (hash-ref tool 'annotations) 'readOnlyHint)))))
+
   (test-case "strict CDN URL allowlist"
     (check-equal? (media-url image-url) image-url)
     (check-equal? (media-url "https://pbs.twimg.com/media/a?format=jpg&name=orig")
