@@ -19,8 +19,8 @@
                    [current-token-provider (lambda () (error "must not read credentials"))]
                    [current-transport (lambda args (error "must not call X"))])
       (check-equal? (map (lambda (t) (hash-ref t 'name)) (tool-list))
-                    '("fetch_x_media" "fetch_github_image" "inspect_chatgpt_image"))
-      (define tool (caddr (tool-list)))
+                    '("fetch_x_media" "fetch_github_image" "fetch_github_text" "inspect_chatgpt_image"))
+      (define tool (cadddr (tool-list)))
       (check-equal? (hash-ref (hash-ref tool '_meta) 'openai/fileParams) '("file"))
       (define result (call-tool "inspect_chatgpt_image" (hasheq 'file file)))
       (check-equal? (hash-ref (cadr (hash-ref result 'content)) 'data) png64)
