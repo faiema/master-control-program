@@ -60,7 +60,7 @@ racket racket/server.rkt
 ```
 
 Configure a local MCP client to launch `racket` with the absolute path to
-`racket/server.rkt` as its argument. `fetch_x_media` and `fetch_github_image` are exposed by default;
+`racket/server.rkt` as its argument. `fetch_x_media`, `fetch_github_image`, and `fetch_github_text` are exposed by default;
 public image reads need no token. Private GitHub access uses separate
 [GitHub credentials](docs/github.md). The image-validation worker resolves its own source path and
 uses the same Racket executable, independently of the client's working directory.
@@ -71,6 +71,9 @@ uses the same Racket executable, independently of the client's working directory
 | --- | --- | --- |
 | `fetch_x_media` | Direct HTTPS `pbs.twimg.com/media/` URL; optional post ID/media key | Original MCP image content, MIME, dimensions, size, provenance |
 | `fetch_github_image` | GitHub repository, file path, optional ref | Original MCP image content and verified blob SHA provenance |
+| `fetch_github_text` | GitHub repository, text path, optional ref | Exact UTF-8 text and verified blob SHA |
+| `upload_github_text` (GitHub writes enabled) | Repository, path, branch, message, content; optional expected SHA and idempotency key | Verified commit receipt or structured conflict/uncertainty |
+| `patch_github_text` (GitHub writes enabled) | Repository, path, branch, expected SHA, message, literal edit; optional idempotency key | Verified exact append, replacement, or insertion |
 | `upload_github_image` (GitHub writes enabled) | Repository, path, branch, message; image bytes/file; optional expected blob SHA | Commit SHA, verified blob SHA and file URL |
 | `inspect_chatgpt_image` (opt-in) | ChatGPT file reference from an explicitly allowed host | Original MCP image content and metadata |
 | `upload_x_media` (writes enabled) | Raw base64 static JPEG/PNG or, with file inputs enabled, a ChatGPT file reference; at most 5 MiB | Media ID, optional media key and expiry |
@@ -91,9 +94,11 @@ image handoff for hosted ChatGPT uses the optional file-reference input describe
 in [docs/chatgpt.md](docs/chatgpt.md). This path has been verified with an accessible
 generated image; a failed generation with no accessible file cannot be passed.
 
-GitHub image uploads create a real commit and require `MCP_GITHUB_ENABLE_WRITES=1`
+GitHub image and text uploads create a real commit and require `MCP_GITHUB_ENABLE_WRITES=1`
 plus a token with Contents: write. They create only by default; replacement
-requires the current blob SHA. See [GitHub upload setup](docs/github.md#upload-an-image-to-a-repository).
+requires the current blob SHA. Text writes support verified receipts and optional
+persistent idempotency via `MCP_GITHUB_TEXT_STATE_DIR`; see [text setup](docs/github.md#utf-8-text-files).
+See [GitHub upload setup](docs/github.md#upload-an-image-to-a-repository).
 
 ## Authentication and writes
 
@@ -153,7 +158,7 @@ Endpoints and scopes were checked on 2026-10-07 against X's
 
 ```sh
 raco test racket/tests.rkt racket/oauth-tests.rkt racket/lib-tests.rkt
-raco test racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt racket/github-tests.rkt racket/github-upload-tests.rkt
+raco test racket/chatgpt-file-tests.rkt racket/cancellation-tests.rkt racket/github-tests.rkt racket/github-upload-tests.rkt racket/github-text-tests.rkt
 ```
 
 Tests use synthetic fixtures. OAuth tests open localhost listeners; they never

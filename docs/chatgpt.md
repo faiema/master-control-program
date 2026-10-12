@@ -79,8 +79,20 @@ is assumed from an example or guessed from a file ID.
 
 For this user's 2026-10-07 test, ChatGPT supplied an accessible generated image
 on `oaisdmntprwestus3.blob.core.windows.net`. After checking its HTTPS endpoint,
-the local profile allows exactly that host. This is an observed account/region
+the local profile initially allowed exactly that host. This is an observed account/region
 example, not a global default or permission to allow all Azure storage accounts.
+
+On 2026-10-11, the user's attempt to upload Ty's approved face reference supplied
+`oaisdmntprwestus.blob.core.windows.net` (without the `3`) and was rejected before
+download or upload. After verifying that exact endpoint over certificate-validated
+HTTPS, the private launcher allowlist was expanded to contain both observed hosts,
+comma-separated. The bare storage endpoint returned HTTP 400, which confirms
+connectivity/TLS but does not test a signed file download. No wildcard was added;
+all existing URL, redirect, size, MIME, and credential-isolation checks remain in
+force. The local tunnel was restarted and reported healthy/ready; the running
+Racket child's allowlist was verified to contain both exact hosts. The six
+synthetic ChatGPT file tests passed. A fresh upload attempt in the originating ChatGPT context is required to
+verify Ty's actual file handoff.
 
 ## Enable posting after the read-only checks
 
@@ -169,3 +181,26 @@ annotations and ChatGPT file input. The user reports the existing token has
 read/write permission. The user subsequently confirmed that upload, fetch-back,
 and visual inspection all succeeded in another ChatGPT conversation on
 2026-10-10. The exact commit receipt and client platform were not supplied here.
+
+
+## GitHub text setup — 2026-10-11
+
+The private launcher now sets `MCP_GITHUB_TEXT_STATE_DIR` to the absolute
+repository `.secrets/github-text-state` directory (mode 0700). The existing
+GitHub write flag also exposes `upload_github_text`; `fetch_github_text` is
+available by default. The tunnel was restarted and reported healthy/ready.
+Live text checks through a separate local MCP client using the production
+launcher passed; see [the exact results](github.md#live-text-acceptance--2026-10-11).
+After restarting Codex, connected fetch/update/exact read-back and keyed receipt
+replay passed; see [connected acceptance](github.md#connected-text-acceptance--2026-10-11).
+
+The subsequent `patch_github_text` implementation uses the same GitHub write flag
+and persistent journal. On 2026-10-11, the user selected the local runtime and it
+was started with the new code; status reported healthy/ready. A connected text
+read produced correlated JSON events in the tunnel stderr log. This client's
+returned tool result did not expose `_meta.request_id`; clients needing an ID
+before invocation should supply the optional `request_id` after schema refresh.
+After catalog refresh, connected patch discovery, append, exact read-back,
+keyed receipt replay and runtime log correlation passed on the disposable branch;
+see [connected patch acceptance](github.md#connected-patch-acceptance--2026-10-11). See
+[patch semantics and diagnostics](github.md#precise-edits-with-patch_github_text).

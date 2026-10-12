@@ -3,7 +3,11 @@
 
 ;; GitHub credentials never enter the X or file-download transports.
 (require json "lib/cancellation.rkt" net/http-client openssl racket/string "common.rkt")
-(provide current-github-request current-github-token current-github-sendrecv github-request read-github-response)
+(provide (struct-out exn:fail:github) current-github-request current-github-token current-github-sendrecv github-request read-github-response)
+
+(struct exn:fail:github exn:fail:bridge (status) #:transparent)
+(define (github-http-error code message)
+  (raise (exn:fail:github message (current-continuation-marks) code)))
 
 (define current-github-token (make-parameter (lambda () (getenv "MCP_GITHUB_TOKEN"))))
 (define current-github-sendrecv (make-parameter http-sendrecv))
@@ -14,7 +18,7 @@
   (define code (string->number (bytes->string/latin-1 (cadr matched))))
   (unless (or (= code 200) (and write? (= code 201)))
     ;; Never echo upstream bodies, redirect targets, or credential-bearing URLs.
-    (bridge-error
+    (github-http-error code
      (format "GitHub: HTTP ~a. ~a" code
              (cond [(= code 401) "Authentication failed; replace MCP_GITHUB_TOKEN with a valid token."]
                    [(= code 404) "Repository, path, or ref was not found, or is private. Check the inputs and the token's repository access."]
@@ -52,7 +56,8 @@
     (if write? (string-append message " A commit may have succeeded; check the destination before retrying. No automatic retry occurred.") message))
   ;; Cross the cancellation boundary in the tool thread, before bounded I/O.
   (when write? (mark-side-effect-started!))
-  (with-handlers ([exn:fail:bridge? (lambda (e) (bridge-error (guidance (exn-message e))))]
+  (with-handlers ([exn:fail:github? (lambda (e) (github-http-error (exn:fail:github-status e) (guidance (exn-message e))))]
+                  [exn:fail:bridge? (lambda (e) (bridge-error (guidance (exn-message e))))]
                   [exn:fail? (lambda (_) (bridge-error (guidance "GitHub: connection or TLS failed; check connectivity and trust roots.")))])
     (call/bounded
      30

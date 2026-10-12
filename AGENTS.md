@@ -465,3 +465,22 @@ tests must not contact GitHub. Do not conflate image reads with issue #1 writes.
 GitHub uploads require their own write flag and Contents: write authorization.
 Create-only is the default; replacement requires an explicitly supplied current
 blob SHA. Never retry an uncertain commit automatically or publish in tests.
+
+## GitHub text
+
+`fetch_github_text` and gated `upload_github_text` are documented in
+`docs/github.md`. Preserve exact UTF-8 bytes, explicit expected-SHA replacement,
+and immutable-commit verification. Run `raco test racket/github-text-tests.rkt`
+alongside existing checks. Durable idempotency claims must never cause an
+uncertain submission to be repeated automatically. Keep document contents,
+credentials and raw idempotency keys out of logs/journals. Do not infer policy
+refusals from prose or generic upstream errors; never use this transport to
+circumvent an upstream policy decision.
+
+`patch_github_text` shares the text-write gate and durable journal. Require the
+caller's expected SHA; exact anchors must occur once, including overlapping
+matches. Preserve unrelated UTF-8 bytes and never reapply a patch during journal
+recovery. Correlate invocations with safe IDs outside replayable receipts; keep
+text and raw idempotency keys out of stderr. Missing log entries alone do not
+prove an upstream policy rejection. Never route explicitly rejected edits through
+patching or another transport.

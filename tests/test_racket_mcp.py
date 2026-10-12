@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +21,7 @@ def png():
 
 @unittest.skipUnless(shutil.which("racket") and importlib.util.find_spec("mcp"), "Racket and MCP SDK required")
 class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
-    async def with_server(self, callback, *, fixture=False, writes=False, files=False, github_writes=False, readonly_launcher=False):
+    async def with_server(self, callback, *, fixture=False, writes=False, files=False, github_writes=False, readonly_launcher=False, github_state="", reject_github_requests=False, error_log=None):
         from mcp import ClientSession, StdioServerParameters
         from mcp.client.stdio import stdio_client
 
@@ -32,9 +33,11 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
                 env=dict(os.environ, MCP_X_ENABLE_WRITES="1" if writes else "0",
                          MCP_CHATGPT_FILES="1" if files else "0",
                          MCP_GITHUB_ENABLE_WRITES="1" if github_writes else "0",
+                         MCP_GITHUB_TEXT_STATE_DIR=github_state,
+                         MCP_TEST_GITHUB_REJECT_REQUESTS="1" if reject_github_requests else "0",
                          MCP_CHATGPT_FILE_HOSTS="files.example.test" if files else ""),
             )
-            async with stdio_client(parameters) as (reader, writer):
+            async with stdio_client(parameters, **({"errlog": error_log} if error_log else {})) as (reader, writer):
                 async with ClientSession(reader, writer) as session:
                     initialized = await session.initialize()
                     self.assertEqual(initialized.serverInfo.name, "master-control-program-racket")
@@ -47,7 +50,7 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
         async def check(session):
             await session.send_ping()
             tools = (await session.list_tools()).tools
-            self.assertEqual([tool.name for tool in tools], ["fetch_x_media", "fetch_github_image"])
+            self.assertEqual([tool.name for tool in tools], ["fetch_x_media", "fetch_github_image", "fetch_github_text"])
             self.assertTrue(tools[0].annotations.readOnlyHint)
             result = await session.call_tool("fetch_x_media", {"url": "https://localhost/secret"})
             self.assertTrue(result.isError)
@@ -70,7 +73,7 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
     async def test_mocked_write_contracts_and_annotations(self):
         async def check(session):
             tools = {tool.name: tool for tool in (await session.list_tools()).tools}
-            self.assertEqual(set(tools), {"fetch_x_media", "fetch_github_image", "upload_x_media", "create_x_post"})
+            self.assertEqual(set(tools), {"fetch_x_media", "fetch_github_image", "fetch_github_text", "upload_x_media", "create_x_post"})
             for name in ["upload_x_media", "create_x_post"]:
                 self.assertFalse(tools[name].annotations.readOnlyHint)
                 self.assertFalse(tools[name].annotations.idempotentHint)
@@ -151,6 +154,53 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
 
         await self.with_server(check, fixture=True, files=True, github_writes=True)
 
+    async def test_github_text_roundtrip_and_structured_conflict(self):
+        async def check(session):
+            tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+            self.assertTrue(tools["fetch_github_text"].annotations.readOnlyHint)
+            self.assertFalse(tools["upload_github_text"].annotations.readOnlyHint)
+            prose = '# Faië and Maië\r\n\n“I need time,” she said.\n'
+            destination = dict(repository_full_name="owner/repo", path="canon.md", branch="test",
+                               message="Update character", content=prose)
+            created = await session.call_tool("upload_github_text", destination)
+            self.assertFalse(created.isError)
+            receipt = created.structuredContent
+            self.assertTrue(receipt["verified"])
+            self.assertEqual(json.loads(created.content[0].text), receipt)
+            fetched = await session.call_tool("fetch_github_text", dict(
+                repository_full_name="owner/repo", path="canon.md", ref="test"))
+            self.assertEqual(fetched.structuredContent["content"], prose)
+            self.assertEqual(fetched.structuredContent["blob_sha"], receipt["blob_sha"])
+            conflict = await session.call_tool("upload_github_text", destination)
+            self.assertTrue(conflict.isError)
+            self.assertEqual(conflict.structuredContent["category"], "SHA_CONFLICT")
+            self.assertEqual(conflict.structuredContent["current_sha"], receipt["blob_sha"])
+            updated = await session.call_tool("upload_github_text", dict(
+                destination, content=prose + "**Trust**\n", expected_sha=receipt["blob_sha"]))
+            self.assertFalse(updated.isError)
+            self.assertEqual(updated.structuredContent["operation"], "replace")
+
+        await self.with_server(check, fixture=True, github_writes=True)
+
+    async def test_github_text_receipt_survives_server_restart(self):
+        destination = dict(repository_full_name="owner/repo", path="canon.md", branch="test",
+                           message="Create canon", content="Faië and Maië\n", idempotency_key="restart")
+        receipts = []
+
+        async def check(session):
+            result = await session.call_tool("upload_github_text", destination)
+            self.assertFalse(result.isError)
+            self.assertTrue(result.structuredContent["verified"])
+            receipts.append(result.structuredContent)
+
+        with tempfile.TemporaryDirectory() as journal:
+            await self.with_server(check, fixture=True, github_writes=True, github_state=journal)
+            # A new Racket process has no fixture file state. It must replay the
+            # on-disk receipt, without requiring GitHub lookup or another PUT.
+            await self.with_server(check, fixture=True, github_writes=True, github_state=journal,
+                                   reject_github_requests=True)
+        self.assertEqual(receipts[0], receipts[1])
+
     async def test_github_upload_base64_schema_without_files(self):
         async def check(session):
             tools = {tool.name: tool for tool in (await session.list_tools()).tools}
@@ -166,8 +216,62 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
         async def check(session):
             tools = {tool.name: tool for tool in (await session.list_tools()).tools}
             self.assertNotIn("upload_github_image", tools)
+            self.assertNotIn("upload_github_text", tools)
+            self.assertNotIn("patch_github_text", tools)
             self.assertNotIn("upload_x_media", tools)
             self.assertNotIn("create_x_post", tools)
             self.assertIn("fetch_github_image", tools)
 
         await self.with_server(check, writes=True, github_writes=True, readonly_launcher=True)
+
+    async def test_github_patch_roundtrip_diagnostics_and_restart(self):
+        patch_args = {}
+        receipts = []
+        first_id, replay_id = "1" * 32, "2" * 32
+        prose = '\ufeff# Faië and Maië\r\n日本語 🌿\n'
+
+        async def initial(session):
+            tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+            self.assertFalse(tools["patch_github_text"].annotations.readOnlyHint)
+            self.assertIn("expected_sha", tools["patch_github_text"].inputSchema["required"])
+            created = await session.call_tool("upload_github_text", dict(
+                repository_full_name="owner/repo", path="canon.md", branch="test",
+                message="Create fixture", content=prose))
+            self.assertFalse(created.isError)
+            patch_args.update(repository_full_name="owner/repo", path="canon.md", branch="test",
+                              message="Patch fixture", expected_sha=created.structuredContent["blob_sha"],
+                              operation="replace_exact", anchor="日本語 🌿", replacement="**Trust**",
+                              idempotency_key="patch-restart")
+            result = await session.call_tool("patch_github_text", dict(patch_args, request_id=first_id))
+            self.assertFalse(result.isError)
+            self.assertTrue(result.structuredContent["verified"])
+            self.assertEqual(result.model_dump(by_alias=True)["_meta"]["request_id"], first_id)
+            receipts.append(result.structuredContent)
+            fetched = await session.call_tool("fetch_github_text", dict(
+                repository_full_name="owner/repo", path="canon.md", ref="test"))
+            self.assertEqual(fetched.structuredContent["content"], prose.replace("日本語 🌿", "**Trust**"))
+            stale = await session.call_tool("patch_github_text", dict(patch_args, idempotency_key=None))
+            self.assertTrue(stale.isError)
+            self.assertEqual(stale.structuredContent["category"], "SHA_CONFLICT")
+
+        async def replay(session):
+            result = await session.call_tool("patch_github_text", dict(patch_args, request_id=replay_id))
+            self.assertFalse(result.isError)
+            receipts.append(result.structuredContent)
+            self.assertEqual(result.model_dump(by_alias=True)["_meta"]["request_id"], replay_id)
+
+        with tempfile.TemporaryDirectory() as journal, tempfile.TemporaryFile(mode="w+") as logs:
+            await self.with_server(initial, fixture=True, github_writes=True, github_state=journal, error_log=logs)
+            await self.with_server(replay, fixture=True, github_writes=True, github_state=journal,
+                                   reject_github_requests=True, error_log=logs)
+            logs.seek(0)
+            logged = logs.read()
+            events = [json.loads(line) for line in logged.splitlines()]
+            for request_id in (first_id, replay_id):
+                stages = [e["stage"] for e in events if e["request_id"] == request_id]
+                self.assertEqual(stages[0], "request_received")
+                self.assertEqual(stages[-1], "request_completed")
+            self.assertNotIn("Faië", logged)
+            self.assertNotIn("Trust", logged)
+            self.assertNotIn("patch-restart", logged)
+        self.assertEqual(receipts[0], receipts[1])

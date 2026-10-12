@@ -1,7 +1,7 @@
 #lang racket/base
 ;; SPDX-License-Identifier: AGPL-3.0-only
 
-(require json racket/list "common.rkt" "media.rkt" "github-media.rkt" "github-upload.rkt" "x-api.rkt" "chatgpt-file.rkt" "lib/mcp-stdio.rkt")
+(require json racket/list "common.rkt" "media.rkt" "github-media.rkt" "github-upload.rkt" "github-text.rkt" "x-api.rkt" "chatgpt-file.rkt" "lib/mcp-stdio.rkt")
 (provide serve tool-list call-tool)
 
 (define string-schema (hasheq 'type "string"))
@@ -25,6 +25,31 @@
                  'inputSchema (schema (hasheq 'repository_full_name string-schema 'path string-schema
                                                'ref optional-string-schema) '("repository_full_name" "path"))
                  'annotations (annotations #f)))
+   (list (hasheq 'name "fetch_github_text"
+                 'description "Read exact UTF-8 text (max 1 MiB) and verified Git blob SHA from a GitHub repository. Does not write."
+                 'inputSchema (schema (hasheq 'repository_full_name string-schema 'path string-schema
+                                               'ref optional-string-schema 'request_id optional-string-schema) '("repository_full_name" "path"))
+                 'annotations (annotations #f)))
+   (if (current-github-writes-enabled)
+       (list (hasheq 'name "upload_github_text"
+                     'description "WRITE: commit exact UTF-8 text (max 1 MiB) on explicit user authorization. Omit expected_sha for create-only; replacement requires the current blob SHA. Optional idempotency_key requires persistent server journal configuration. Never resubmit an uncertain write with a new key. Cannot bypass upstream policy enforcement."
+                     'inputSchema (schema (hasheq 'repository_full_name string-schema 'path string-schema
+                                                   'branch string-schema 'message string-schema 'content string-schema
+                                                   'expected_sha optional-string-schema 'idempotency_key optional-string-schema
+                                                   'request_id optional-string-schema)
+                                          '("repository_full_name" "path" "branch" "message" "content"))
+                     'annotations (annotations #t))
+             (hasheq 'name "patch_github_text"
+                     'description "WRITE: apply an authorized literal edit to an existing UTF-8 file (max 1 MiB). Requires expected_sha. replace_exact uses one unique anchor and replacement; insert_after uses one unique anchor and content; append uses content only. No normalization. Optional idempotency_key prevents duplicate submissions; request_id correlates logs. Never retry uncertain writes with a new key or reroute an explicitly policy-blocked edit through this tool."
+                     'inputSchema
+                     (schema (hasheq 'repository_full_name string-schema 'path string-schema
+                                     'branch string-schema 'message string-schema 'expected_sha string-schema
+                                     'operation (hasheq 'type "string" 'enum '("replace_exact" "insert_after" "append"))
+                                     'anchor string-schema 'replacement string-schema 'content string-schema
+                                     'idempotency_key optional-string-schema 'request_id optional-string-schema)
+                             '("repository_full_name" "path" "branch" "message" "expected_sha" "operation"))
+                     'annotations (annotations #t)))
+       '())
    (if files?
        (list (hasheq 'name "inspect_chatgpt_image"
                      'description "Read a ChatGPT image file and return its original image content for visual inspection. Does not upload to X."
@@ -72,26 +97,53 @@
 (define (tool-error message)
   (hasheq 'isError #t 'content (list (hasheq 'type "text" 'text message))))
 
+(define (text-tool? name) (member name '("fetch_github_text" "upload_github_text" "patch_github_text")))
 (define (call-tool name arguments)
+  (unless (findf (lambda (tool) (equal? name (hash-ref tool 'name))) (tool-list))
+    (rpc-error -32602 "Unknown or disabled tool."))
+  (if (text-tool? name)
+      (call-github-text (lambda () (call-tool/internal name arguments))
+                        #:tool name #:arguments arguments
+                        #:request-id (and (hash? arguments) (hash-ref arguments 'request_id #f)))
+      (call-tool/internal name arguments)))
+(define (call-tool/internal name arguments)
   (define tool (findf (lambda (tool) (equal? name (hash-ref tool 'name))) (tool-list)))
   (unless tool (rpc-error -32602 "Unknown or disabled tool."))
-  (unless (hash? arguments) (rpc-error -32602 "Tool arguments must be an object."))
+  (define (invalid-arguments message)
+    (if (text-tool? name) (bridge-error message) (rpc-error -32602 message)))
+  (unless (hash? arguments) (invalid-arguments "Tool arguments must be an object."))
   (define properties (hash-ref (hash-ref tool 'inputSchema) 'properties))
   (unless (for/and ([key (in-hash-keys arguments)]) (hash-has-key? properties key))
-    (rpc-error -32602 "Unknown tool argument."))
-  (with-handlers ([exn:fail:bridge? (lambda (e) (tool-error (exn-message e)))]
-                  [exn:fail? (lambda (_) (tool-error "Local processing: unexpected failure. Inspect with synthetic inputs before retrying; a write may have succeeded."))])
+    (invalid-arguments "Unknown tool argument."))
+  (with-handlers ([(lambda (e) (and (not (text-tool? name)) (exn:fail:bridge? e))) (lambda (e) (tool-error (exn-message e)))]
+                  [(lambda (e) (and (not (text-tool? name)) (exn:fail? e))) (lambda (_) (tool-error "Local processing: unexpected failure. Inspect with synthetic inputs before retrying; a write may have succeeded."))])
     (for ([key (in-list (hash-ref (hash-ref tool 'inputSchema) 'required))])
       (unless (hash-has-key? arguments (string->symbol key))
         (bridge-error "Validation: a required tool argument is missing.")))
     (for ([(key value) (in-hash arguments)])
       (unless (case key
-                [(url text image_base64 repository_full_name path branch message) (string? value)]
+                [(url text image_base64 repository_full_name path branch message content operation anchor replacement) (string? value)]
                 [(file) (hash? value)]
-                [(post_id media_key reply_to ref expected_sha) (or (string? value) (eq? value 'null))]
+                [(post_id media_key reply_to ref expected_sha idempotency_key request_id) (or (string? value) (eq? value 'null))]
                 [(media_ids) (or (eq? value 'null) (and (list? value) (andmap string? value)))])
         (bridge-error "Validation: tool argument has the wrong type.")))
     (cond
+      [(equal? name "fetch_github_text")
+       (fetch-github-text (hash-ref arguments 'repository_full_name) (hash-ref arguments 'path)
+                          (hash-ref arguments 'ref 'null))]
+      [(equal? name "upload_github_text")
+       (upload-github-text (hash-ref arguments 'repository_full_name) (hash-ref arguments 'path)
+                           (hash-ref arguments 'branch) (hash-ref arguments 'content) (hash-ref arguments 'message)
+                           #:expected-sha (hash-ref arguments 'expected_sha 'null)
+                           #:idempotency-key (hash-ref arguments 'idempotency_key 'null))]
+      [(equal? name "patch_github_text")
+       (patch-github-text (hash-ref arguments 'repository_full_name) (hash-ref arguments 'path)
+                          (hash-ref arguments 'branch) (hash-ref arguments 'expected_sha)
+                          (hash-ref arguments 'message) (hash-ref arguments 'operation)
+                          #:anchor (hash-ref arguments 'anchor #f)
+                          #:replacement (hash-ref arguments 'replacement #f)
+                          #:content (hash-ref arguments 'content #f)
+                          #:idempotency-key (hash-ref arguments 'idempotency_key 'null))]
       [(equal? name "fetch_x_media")
        (fetch-result (hash-ref arguments 'url) (hash-ref arguments 'post_id 'null) (hash-ref arguments 'media_key 'null))]
       [(equal? name "fetch_github_image")

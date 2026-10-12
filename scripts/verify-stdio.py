@@ -24,7 +24,7 @@ async def verify(url, output):
         async with ClientSession(reader, writer) as session:
             await session.initialize()
             listed = await session.list_tools()
-            assert [tool.name for tool in listed.tools] == ["fetch_x_media", "fetch_github_image"]
+            assert [tool.name for tool in listed.tools] == ["fetch_x_media", "fetch_github_image", "fetch_github_text"]
             result = await session.call_tool("fetch_x_media", {"url": url})
             if result.isError:
                 raise RuntimeError("; ".join(block.text for block in result.content if block.type == "text"))

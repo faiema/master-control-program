@@ -94,8 +94,17 @@ cancellation behavior has not been separately verified.
 Read-only `fetch_github_image` is implemented for issue #2. A public repository
 image passed a live stdio MCP round trip and visual inspection on 2026-10-09.
 Private canonical-image retrieval also passed on 2026-10-10. The user later
-confirmed hosted ChatGPT upload, fetch-back, and visual inspection. See [GitHub setup and verification](github.md). Issue #1 text-write recovery is
-separate follow-up work.
+confirmed hosted ChatGPT upload, fetch-back, and visual inspection. See [GitHub setup and verification](github.md). UTF-8 text reads and writes are now implemented with SHA protection, immutable
+commit verification, structured diagnostics, and an optional persistent idempotency
+journal. Offline validation includes MCP client round trips. Live create/update, conflict
+protection and restart replay passed on an isolated test branch on 2026-10-11;
+the tunnel was restarted with persistent journal configuration. Connected text
+fetch/update/read-back and receipt replay subsequently passed in Codex.
+`patch_github_text` now supports literal append, replacement and insertion with
+correlated request diagnostics. The expanded offline suite passed 99 Racket and
+12 Python tests, including patch recovery and replay across server restarts.
+Connected patch invocation still requires refreshed tool discovery.
+See [text setup](github.md#utf-8-text-files).
 
 ## Follow-up work
 
