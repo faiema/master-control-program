@@ -71,8 +71,8 @@ The tool descriptors implement the documented
 
 Set `MCP_CHATGPT_FILES=1` to expose `inspect_chatgpt_image`, a read-only round trip
 returning original MCP image content. The read-only launcher sets this flag.
-Downloads are disabled until `MCP_CHATGPT_FILE_HOSTS` contains the trusted exact
-download hostname. A rejected file reference reports only its hostname, so the
+Downloads are disabled until `MCP_CHATGPT_FILE_HOSTS` contains an authorized
+exact download hostname or the explicit storage-family pattern below. A rejected file reference reports only its hostname, so the
 operator can verify it without logging its signed URL. Configure the verified
 hostname in the tunnel process environment and restart/rescan tools. No hostname
 is assumed from an example or guessed from a file ID.
@@ -102,6 +102,38 @@ the restarted tunnel reported healthy/ready and the running Racket process's
 allowlist contained the new host. An actual signed file download was not tested.
 The endpoint check verifies connectivity, not ownership of an Azure account.
 
+## Regional storage-family opt-in
+
+On 2026-10-13, the user authorized replacing the three observed regional entries
+with this narrowly supported pattern in the private launcher:
+
+```sh
+export MCP_CHATGPT_FILE_HOSTS='oaisdmntpr*.blob.core.windows.net'
+```
+
+This is a special-case matcher, not general glob support. It accepts the exact
+`oaisdmntpr` prefix followed by 1–15 lowercase ASCII letters/digits and the exact
+`.blob.core.windows.net` suffix (at most 24 characters in the account name).
+Exact hostname entries still work and can be mixed with this entry. The pattern
+is disabled unless configured. Bare Azure wildcards, extra subdomains, hyphens
+in the account suffix, and oversized account names do not match.
+
+Community precedent:
+
+- [ServerFS MCP binary transfer](https://ntlx.github.io/ServerFS_MCP/docs/binary-transfer/#chatgpt-file-ingress)
+  offers an opt-in for this observed regional account family.
+- [X1pheR filesystem MCP](https://github.com/X1pheR/mcp-server-filesystem)
+  documents the same family for runtime file ingress.
+- [WebCodex deployment](https://github.com/yyjeqhc/webcodex/blob/main/docs/DEPLOYMENT.md)
+  documents the same pattern for attachment imports.
+
+These are community implementations, not an official account ownership registry.
+The configured pattern trusts the naming family; matching it does not prove
+OpenAI ownership. This change does not adopt those projects' other transport
+implementations. Our existing HTTPS/TLS verification, no-redirect policy,
+credential isolation, URL restrictions, timeout, size and image validation
+remain unchanged. No signed file download is implied by configuration validation.
+
 ## Enable posting after the read-only checks
 
 Complete X authorization as described in the [README](../README.md). Replace
@@ -117,7 +149,8 @@ env -u X_ACCESS_TOKEN MCP_X_ENABLE_WRITES=1 MCP_CHATGPT_FILES=1 \
 Use this as the profile's MCP command, restart the runtime, and refresh the
 custom plugin's tools in ChatGPT. A new conversation should discover
 `upload_x_media` and `create_x_post` alongside the read tools. Replace the host
-placeholder with the exact verified lowercase hostname, not a URL or wildcard.
+placeholder with an authorized exact lowercase hostname or the supported
+`oaisdmntpr*.blob.core.windows.net` pattern, not a URL.
 Enabling writes grants clients with access to this instance the configured
 owner's posting capability. Keep that access private. See the
 [official refresh instructions](https://developers.openai.com/plugins/deploy/connect-chatgpt).
@@ -132,7 +165,8 @@ securely to the dedicated account. Do not expose the callback publicly.
 
 Only allow service-owned public download hosts that you trust; the allowlist is
 operator configuration, not a caller argument. Do not permit private services,
-arbitrary user-controlled DNS names, or wildcard domains. HTTPS certificate
+arbitrary user-controlled DNS names, or generic wildcard domains. The only
+supported wildcard is the explicit opt-in storage-family pattern above. HTTPS certificate
 validation remains enabled. Credentials, ports, fragments, backslashes, control
 characters, redirects, and unlisted hosts are rejected. Downloads have a
 30-second deadline and 5 MiB cap; native decoding enforces existing format and

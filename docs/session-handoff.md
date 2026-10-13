@@ -51,7 +51,9 @@ Do not print full runtime logs or signed image URLs.
 The current setup uses ignored `.secrets/serve-chatgpt` to load the private
 `.secrets/x-client.env` and launch `racket/server.rkt`, with writes and
 ChatGPT files enabled, an absolute token-file path, and `X_ACCESS_TOKEN` unset.
-Only the exact observed image-storage host is allowed. Preserve
+At this handoff, only the exact observed image-storage host was allowed.
+The 2026-10-13 regional-family opt-in supersedes that configuration; see
+`docs/chatgpt.md`. Preserve
 `MCP_STDIO_SEND_INITIALIZED_NOTIFICATION=true` when restarting the tunnel. The
 readonly launcher intentionally forces writes off and is not the posting entrypoint.
 The user completed the new offline-access login; the saved confidential-client

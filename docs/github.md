@@ -165,7 +165,7 @@ multi-file transaction, issue attachment, Git LFS upload, or text fallback is
 implemented by this tool.
 
 Static PNG/JPEG/WebP up to 5 MiB and 40 megapixels are decoded for validation and
-committed unchanged. ChatGPT file inputs use the same exact-host allowlist and
+committed unchanged. ChatGPT file inputs use the same configured host allowlist and
 credential-free downloader as other file tools. The upload returns MIME,
 dimensions, byte count, blob SHA, commit SHA, and an immutable GitHub file URL.
 No image bytes, signed download URL, or token appear in the receipt.

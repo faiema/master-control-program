@@ -9,6 +9,12 @@
 
 (define current-file-hosts (make-parameter '()))
 (define current-file-inputs-enabled (make-parameter #f))
+;; Explicit opt-in to one observed storage-account family, not generic globbing.
+(define openai-blob-pattern "oaisdmntpr*.blob.core.windows.net")
+(define (allowed-file-host? host)
+  (or (member host (current-file-hosts))
+      (and (member openai-blob-pattern (current-file-hosts))
+           (regexp-match? #px"^oaisdmntpr[a-z0-9]{1,15}\\.blob\\.core\\.windows\\.net$" host))))
 (define file-schema
   (hasheq 'type "object"
           'properties (hasheq 'download_url (hasheq 'type "string")
@@ -20,9 +26,10 @@
 (define (file-hosts-from-environment)
   (define hosts (string-split (or (getenv "MCP_CHATGPT_FILE_HOSTS") "") ","))
   (for ([host (in-list hosts)])
-    (unless (and (<= (string-length host) 253)
-                 (regexp-match? #px"^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)*\\.[a-z]{2,}$" host))
-      (bridge-error "Configuration: MCP_CHATGPT_FILE_HOSTS needs comma-separated exact lowercase DNS names, without ports or wildcards.")))
+    (unless (or (equal? host openai-blob-pattern)
+                (and (<= (string-length host) 253)
+                     (regexp-match? #px"^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)*\\.[a-z]{2,}$" host)))
+      (bridge-error "Configuration: MCP_CHATGPT_FILE_HOSTS needs comma-separated exact lowercase DNS names or oaisdmntpr*.blob.core.windows.net; no other wildcards or ports.")))
   hosts)
 
 (define (download host target)
@@ -67,7 +74,7 @@
          (regexp-match #px"^https://([a-z0-9.-]+)(/[^\u0000-\u0020\u007f#\\\\]*)$" url)))
   (unless match
     (bridge-error "ChatGPT file: download host is not allowed. Configure MCP_CHATGPT_FILE_HOSTS with the verified file service hostname; URLs must use HTTPS without credentials, ports, or fragments."))
-  (unless (member (cadr match) (current-file-hosts))
+  (unless (allowed-file-host? (cadr match))
     ;; Only the hostname is diagnostic; never include the path or signed query.
     (bridge-error (format "ChatGPT file: host ~a is not allowed. Verify this file service, then add its exact hostname to MCP_CHATGPT_FILE_HOSTS. No download occurred."
                           (cadr match))))

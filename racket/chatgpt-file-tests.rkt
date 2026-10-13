@@ -69,13 +69,41 @@
         (check-false (regexp-match? #rx"synthetic-secret" (jsexpr->string result))))
       (check-equal? writes 1)))
 
-  (test-case "configuration accepts exact hostnames only"
+  (test-case "storage family wildcard is opt-in and tightly bounded"
+    (define (reference host)
+      (hash-set file 'download_url (string-append "https://" host "/image?signature=synthetic-secret")))
+    (define approved '("oaisdmntprwestus.blob.core.windows.net"
+                       "oaisdmntprwestus3.blob.core.windows.net"
+                       "oaisdmntpreastus2.blob.core.windows.net"))
+    (parameterize ([current-file-hosts '()]
+                   [current-file-download (lambda args (error "must not download"))])
+      (for ([host approved])
+        (check-exn exn:fail:bridge? (lambda () (read-chatgpt-image (reference host))))))
+    (parameterize ([current-file-hosts '("oaisdmntpr*.blob.core.windows.net")]
+                   [current-file-download (lambda (host target) (values png "image/png"))])
+      (for ([host (append approved (list (string-append "oaisdmntpr" (make-string 15 #\a) ".blob.core.windows.net")))])
+        (define-values (raw info) (read-chatgpt-image (reference host)))
+        (check-equal? raw png))
+      (parameterize ([current-file-download (lambda args (error "must not download"))])
+        (for ([host (list "other.blob.core.windows.net" "oaisdmntpr.blob.core.windows.net"
+                          "oaisdmntprwestus.blob.core.windows.net.evil.test"
+                          "oaisdmntprwestus.evil.blob.core.windows.net"
+                          "oaisdmntpr-westus.blob.core.windows.net"
+                          "oaisdmntprWestus.blob.core.windows.net"
+                          "oaisdmntprwestus.blob.core.windows.net:443"
+                          "oaisdmntprwestus.blob.core.windows.net@localhost"
+                          (string-append "oaisdmntpr" (make-string 16 #\a) ".blob.core.windows.net"))])
+          (check-exn exn:fail:bridge? (lambda () (read-chatgpt-image (reference host))))))))
+
+  (test-case "configuration accepts exact hosts and the one supported family wildcard"
     (define env (make-environment-variables))
     (parameterize ([current-environment-variables env])
       (check-equal? (file-hosts-from-environment) '())
       (environment-variables-set! env #"MCP_CHATGPT_FILE_HOSTS" #"files.example.test")
       (check-equal? (file-hosts-from-environment) '("files.example.test"))
-      (for ([bad '(#"*.example.test" #"https://files.example.test" #"127.0.0.1" #"localhost" #"files.example.test:443")])
+      (environment-variables-set! env #"MCP_CHATGPT_FILE_HOSTS" #"files.example.test,oaisdmntpr*.blob.core.windows.net")
+      (check-equal? (file-hosts-from-environment) '("files.example.test" "oaisdmntpr*.blob.core.windows.net"))
+      (for ([bad '(#"*.example.test" #"*.blob.core.windows.net" #"oaisdmntpr*.evil.test" #"https://files.example.test" #"127.0.0.1" #"localhost" #"files.example.test:443")])
         (environment-variables-set! env #"MCP_CHATGPT_FILE_HOSTS" bad)
         (check-exn exn:fail:bridge? file-hosts-from-environment)))))
 

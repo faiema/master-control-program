@@ -60,7 +60,7 @@ group `mcp-x`, mode 0640). Use a runtime key, not an administrator key. The clie
 secret remains available to Racket for refresh. Keep health/UI bound to loopback;
 no public inbound listener is needed. The sample environment disables publishing
 and ChatGPT file inputs until explicitly enabled. See [ChatGPT setup](chatgpt.md)
-for exact file-host configuration and account access boundaries.
+for file-host allowlist configuration and account access boundaries.
 
 ## Installation and checks (when deployment is scheduled)
 

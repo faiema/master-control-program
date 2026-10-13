@@ -16,7 +16,7 @@ binding. Python remains only as an independent MCP client in development checks.
 | `racket/github-media.rkt` | Repository image lookup, immutable blob retrieval and hash verification |
 | `racket/x-errors.rkt` | Bounded safe X/OAuth error summaries, operation names, status advice and retry timing |
 | `racket/media.rkt` | CDN URL allowlist, base64, provenance, unchanged image content |
-| `racket/chatgpt-file.rkt` | Opt-in ChatGPT file references, exact download-host allowlist, bounded credential-free downloads |
+| `racket/chatgpt-file.rkt` | Opt-in ChatGPT file references, explicit download-host allowlist, bounded credential-free downloads |
 | `racket/image-worker.rkt` | Native image validation in a bounded subprocess with an empty environment |
 | `racket/auth.rkt` | X scopes, token exchange, expiry checks and automatic refresh |
 | `racket/login.rkt` | Local authorization flow and terminal interaction |
