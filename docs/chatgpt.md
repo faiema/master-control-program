@@ -94,6 +94,14 @@ Racket child's allowlist was verified to contain both exact hosts. The six
 synthetic ChatGPT file tests passed. A fresh upload attempt in the originating ChatGPT context is required to
 verify Ty's actual file handoff.
 
+On 2026-10-13, the user supplied and authorized
+`oaisdmntpreastus2.blob.core.windows.net`. It was added to the private launcher's
+existing exact-host list. Certificate-validated HTTPS reached the storage
+endpoint (HTTP 400 without a signed file request). Launcher syntax passed;
+the restarted tunnel reported healthy/ready and the running Racket process's
+allowlist contained the new host. An actual signed file download was not tested.
+The endpoint check verifies connectivity, not ownership of an Azure account.
+
 ## Enable posting after the read-only checks
 
 Complete X authorization as described in the [README](../README.md). Replace
