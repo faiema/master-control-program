@@ -1,0 +1,63 @@
+#lang racket/base
+(require rackunit json racket/file racket/port racket/system "git.rkt" "server.rkt")
+(define root (make-temporary-file "mcp-git~a" 'directory))
+(define checkout (build-path root "test.git"))
+(define (git . args)
+  (parameterize ([current-output-port (open-output-nowhere)] [current-error-port (open-output-nowhere)])
+    (unless (apply system* "/usr/bin/git" "-C" (path->string checkout) args)
+      (error 'fixture "git failed"))))
+(define (invoke action . entries)
+  (call-tool "git_repository" (apply hasheq 'repository "test.git" 'action action entries)))
+(define (receipt response) (string->jsexpr (hash-ref (car (hash-ref response 'content)) 'text)))
+(define (head) (hash-ref (receipt (invoke "status")) 'head))
+(dynamic-wind
+ void
+ (lambda ()
+   (make-directory checkout)
+   (git "init" "-b" "main")
+   (parameterize ([current-git-directory (path->string root)]
+                  [current-git-repositories '("test.git")]
+                  [current-git-origin "https://example.invalid"]
+                  [current-git-credential #f]
+                  [current-git-writes-enabled #t])
+     (test-case "unborn branch and exact UTF-8 commit"
+       (check-equal? (head) (make-string 40 #\0))
+       (check-false (hash-ref (invoke "write" 'path "hello.txt" 'content "Héllo\n" 'expected_commit (head)) 'isError #f))
+       (check-false (hash-ref (invoke "commit" 'message "First" 'expected_commit (head)) 'isError #f))
+       (check-equal? (hash-ref (receipt (invoke "read" 'path "hello.txt")) 'output) "Héllo\n"))
+     (test-case "gates, unknown arguments, stale HEAD and path boundaries"
+       (parameterize ([current-git-writes-enabled #f])
+         (check-true (hash-ref (invoke "branch" 'branch "blocked" 'expected_commit (head)) 'isError)))
+       (check-true (hash-ref (invoke "status" 'extra "bad") 'isError))
+       (check-true (hash-ref (invoke "write" 'path "hello.txt" 'content "oops" 'expected_commit (make-string 40 #\0)) 'isError))
+       (for ([path '("../escape" "/absolute" ".git/config" "a/../../escape")])
+         (check-true (hash-ref (invoke "write" 'path path 'content "oops" 'expected_commit (head)) 'isError)))
+       (make-file-or-directory-link root (build-path checkout "escape"))
+       (check-true (hash-ref (invoke "write" 'path "escape/outside" 'content "oops" 'expected_commit (head)) 'isError)))
+     (test-case "branches, checkout, merge, history and tree"
+       (for ([response (list (invoke "branch" 'branch "feature" 'expected_commit (head))
+                             (invoke "checkout" 'branch "feature" 'expected_commit (head))
+                             (invoke "write" 'path "new.txt" 'content "feature\n" 'expected_commit (head))
+                             (invoke "commit" 'message "Feature" 'expected_commit (head))
+                             (invoke "checkout" 'branch "main" 'expected_commit (head))
+                             (invoke "merge" 'ref "feature" 'expected_commit (head)))])
+         (check-false (hash-ref response 'isError #f)))
+       (check-equal? (hash-ref (receipt (invoke "read" 'path "new.txt")) 'output) "feature\n")
+       (check-regexp-match #rx"Feature" (hash-ref (receipt (invoke "log")) 'output))
+       (check-regexp-match #rx"new.txt" (hash-ref (receipt (invoke "tree")) 'output))
+       (check-regexp-match #rx"feature" (hash-ref (receipt (invoke "branches")) 'output)))
+     (test-case "merge conflicts remain inspectable and can be aborted; hooks stay disabled"
+       (define hook (build-path checkout ".git/hooks/pre-commit"))
+       (call-with-output-file hook (lambda (out) (display "#!/bin/sh\nexit 1\n" out)))
+       (file-or-directory-permissions hook #o700)
+       (invoke "write" 'path "hello.txt" 'content "main\n" 'expected_commit (head))
+       (check-false (hash-ref (invoke "commit" 'message "Main edit" 'expected_commit (head)) 'isError #f))
+       (invoke "checkout" 'branch "feature" 'expected_commit (head))
+       (invoke "write" 'path "hello.txt" 'content "feature\n" 'expected_commit (head))
+       (invoke "commit" 'message "Conflicting feature edit" 'expected_commit (head))
+       (check-true (hash-ref (invoke "merge" 'ref "main" 'expected_commit (head)) 'isError))
+       (check-regexp-match #rx"UU hello.txt" (hash-ref (receipt (invoke "status")) 'output))
+       (check-false (hash-ref (invoke "abort_merge" 'expected_commit (head)) 'isError #f))
+       (check-false (regexp-match? #rx"UU hello.txt" (hash-ref (receipt (invoke "status")) 'output)))))
+   )
+ (lambda () (delete-directory/files root)))

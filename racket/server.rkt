@@ -1,7 +1,7 @@
 #lang racket/base
 ;; SPDX-License-Identifier: AGPL-3.0-only
 
-(require json racket/list "common.rkt" "media.rkt" "github-media.rkt" "github-upload.rkt" "github-text.rkt" "x-api.rkt" "chatgpt-file.rkt" "lib/mcp-stdio.rkt")
+(require json racket/list "common.rkt" "media.rkt" "github-media.rkt" "github-upload.rkt" "github-text.rkt" "x-api.rkt" "chatgpt-file.rkt" "lib/mcp-stdio.rkt" "git.rkt")
 (provide serve tool-list call-tool)
 
 (define string-schema (hasheq 'type "string"))
@@ -15,6 +15,7 @@
 (define (tool-list)
   (define files? (or (current-file-inputs-enabled) (pair? (current-file-hosts))))
   (append
+   (git-tools)
    (list (hasheq 'name "fetch_x_media"
                  'description "See an X image: pass a pbs.twimg.com/media URL from the official X MCP. Returns original image content and provenance. Optional IDs are caller-provided, not verified."
                  'inputSchema (schema (hasheq 'url string-schema 'post_id optional-string-schema
@@ -101,11 +102,12 @@
 (define (call-tool name arguments)
   (unless (findf (lambda (tool) (equal? name (hash-ref tool 'name))) (tool-list))
     (rpc-error -32602 "Unknown or disabled tool."))
-  (if (text-tool? name)
+  (cond [(equal? name "git_repository") (call-git arguments)]
+        [(text-tool? name)
       (call-github-text (lambda () (call-tool/internal name arguments))
                         #:tool name #:arguments arguments
-                        #:request-id (and (hash? arguments) (hash-ref arguments 'request_id #f)))
-      (call-tool/internal name arguments)))
+                        #:request-id (and (hash? arguments) (hash-ref arguments 'request_id #f)))]
+        [else (call-tool/internal name arguments)]))
 (define (call-tool/internal name arguments)
   (define tool (findf (lambda (tool) (equal? name (hash-ref tool 'name))) (tool-list)))
   (unless tool (rpc-error -32602 "Unknown or disabled tool."))

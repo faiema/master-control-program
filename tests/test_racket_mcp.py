@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGES = json.loads((ROOT / "tests/fixtures/images.json").read_text())
@@ -212,7 +213,7 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
 
         await self.with_server(check, fixture=True, github_writes=True)
 
-    async def test_readonly_launcher_overrides_both_write_flags(self):
+    async def test_readonly_launcher_overrides_all_write_flags(self):
         async def check(session):
             tools = {tool.name: tool for tool in (await session.list_tools()).tools}
             self.assertNotIn("upload_github_image", tools)
@@ -221,8 +222,15 @@ class RacketMCPTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("upload_x_media", tools)
             self.assertNotIn("create_x_post", tools)
             self.assertIn("fetch_github_image", tools)
+            git = tools["git_repository"]
+            self.assertTrue(git.annotations.readOnlyHint)
+            self.assertNotIn("push", git.inputSchema["properties"]["action"]["enum"])
+            self.assertNotIn("commit", git.inputSchema["properties"]["action"]["enum"])
 
-        await self.with_server(check, writes=True, github_writes=True, readonly_launcher=True)
+        with tempfile.TemporaryDirectory() as cache, patch.dict(os.environ, {
+                "MCP_GIT_DIRECTORY": cache, "MCP_GIT_REPOSITORIES": "test.git",
+                "MCP_GIT_ENABLE_WRITES": "1"}):
+            await self.with_server(check, writes=True, github_writes=True, readonly_launcher=True)
 
     async def test_github_patch_roundtrip_diagnostics_and_restart(self):
         patch_args = {}

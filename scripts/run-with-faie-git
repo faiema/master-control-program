@@ -1,0 +1,7 @@
+#!/bin/bash
+set -euo pipefail
+repo_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+export MCP_GIT_DIRECTORY="${MCP_GIT_DIRECTORY:-$HOME/.local/share/master-control-program/git}"
+export MCP_GIT_REPOSITORIES="${MCP_GIT_REPOSITORIES:-xyzzy.git master-control-program.git simon.git rill.git heartvis.git faiema.github.io.git faie-canon.git}"
+export MCP_GIT_CREDENTIAL_FILE="${MCP_GIT_CREDENTIAL_FILE:-$HOME/.config/faie-git/credential}"
+exec racket "$repo_dir/racket/server.rkt"

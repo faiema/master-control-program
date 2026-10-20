@@ -67,6 +67,11 @@ uses the same Racket executable, independently of the client's working directory
 
 ## Tools
 
+Self-hosted Git on faie.net is available through `git_repository`: file/image
+reads, history, diffs, fetch, staged edits, commits, branches, checkout, merges
+and normal pushes. Configure an explicit repository allowlist and separate Git
+credentials; writes require `MCP_GIT_ENABLE_WRITES=1`. See [Git setup](docs/git.md).
+
 | Tool | Input | Result |
 | --- | --- | --- |
 | `fetch_x_media` | Direct HTTPS `pbs.twimg.com/media/` URL; optional post ID/media key | Original MCP image content, MIME, dimensions, size, provenance |
