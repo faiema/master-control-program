@@ -1,5 +1,10 @@
 # ChatGPT connection and image handoff
 
+The active tunnel moved to faie.net on 2026-10-23, preserving its identity and
+enabled tools. See [deployment](deployment.md) for current service management.
+The local runtime commands and paths below describe earlier verification;
+the old local launcher is now disabled.
+
 ## Current local posting setup — 2026-10-08
 
 The user completed X authorization. The saved token was valid during the posting

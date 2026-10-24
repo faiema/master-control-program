@@ -1,7 +1,77 @@
-# Sample systemd deployment (after launch)
+# Deployment
 
-Durable deployment is deferred until after launch. These are example files, not
-an installed or server-validated deployment:
+## Active deployment: faie.net, 2026-10-23
+
+MCP now runs on `faie.net` as the enabled system service
+`master-control-program.service`, under the dedicated `mcp-x` account.
+No running MCP was found on the former candidate host `g` or locally at cutover.
+The previous local `.secrets/serve-chatgpt` is disabled; its saved token and
+journal are stale rollback material, not another active installation.
+
+The source checkout is `/opt/master-control-program`, initially deployed at
+`3c942bdc0dfff0543adf31fe7ea5cd84c30c81b4`. Racket 8.16 and native image
+dependencies are installed. The checksum-verified official tunnel-client 0.0.18
+bundle is under `/usr/local/lib/master-control-program/tunnel-client-0.0.18`,
+with `/usr/local/bin/tunnel-client` pointing to its executable.
+
+Configuration and credentials live under `/etc/master-control-program`
+(root-owned, group `mcp-x`, directory 0750, secret files 0640). The installed
+profile launches `bash /etc/master-control-program/serve-chatgpt`; this launcher
+loads the migrated `x-client.env` and `github-token.env`. Unlike the sample unit
+below, the installed unit therefore omits `EnvironmentFile`. The existing
+tunnel identity, X/GitHub write gates, ChatGPT file support and authorized
+regional storage-family allowlist were preserved. No public listener was added.
+
+Mutable state lives under `/var/lib/master-control-program`, owned by `mcp-x`,
+with directories 0700 and files 0600. This includes `x-token.json` and
+`github-text-state`; all 81 journal files were checked byte-for-byte at migration.
+Treat this host's state as authoritative. Never restart a second machine with
+copies of the rotating X grant or an old write journal.
+
+Operations:
+
+```sh
+ssh faie.net sudo systemctl status master-control-program
+ssh faie.net sudo systemctl restart master-control-program
+```
+
+The loopback health base URL is saved in
+`/run/master-control-program/health.url`; GET `/health` reports both `live` and
+`ready`. Version 0.0.18 does not serve `/ready`. Set profile `log.file` to the
+empty string for standard output; literal `stdout` is treated as a filename.
+The unit routes stdout/stderr to journald. Never enable raw HTTP logging.
+
+On 2026-10-24, the Git feature (`6bd08a3`) was landed on `main` for deployment.
+The service launcher configures `MCP_GIT_DIRECTORY` as
+`/var/lib/master-control-program/git`, the seven repositories listed in
+`scripts/run-with-faie-git`, origin `https://faie.net`, and the separate
+`/etc/master-control-program/git-credential` file (root:mcp-x, 0640 within the
+0750 configuration directory). Git writes are enabled. Git's persistent workspaces
+are owned by `mcp-x`, mode 0700; they are separate from the source checkout.
+
+The host's journald had failed before deployment with exit 243/CREDENTIALS in
+LXC. `/etc/systemd/system/systemd-journald.service.d/container-credentials.conf`
+clears `ImportCredential=`, avoiding the unsupported credential mount; journald
+then started successfully. This overrides only journal credential imports. The
+MCP service must be restarted after restoring journald to reconnect its output.
+Check `systemctl is-active systemd-journald` as well as the MCP service.
+
+Validation on the destination: 101 Racket tests and 12 independent Python MCP
+tests passed, with no skipped tests or live publishing. The tunnel reported live
+and ready, including after a service restart. A connected MCP call fetched
+`github/explore:topics/racket/racket.png` and returned the actual 288×288 PNG,
+verified against blob `1cfd5120ea7187659de93983d272ce474ddc5352`; the image was
+visually inspected. Boot enablement was checked, but the host was not rebooted.
+X refresh/posting and a new signed ChatGPT file download were not exercised at
+cutover. No test posts or repository writes were made.
+
+For rollback, stop this service first and transfer its latest token and complete
+journal securely before starting any replacement. Do not reuse pre-migration
+state after the new service has handled requests.
+
+## Sample installation for another host
+
+These are generic example files; the live deployment differences are above:
 
 - [master-control-program.service](../deploy/systemd/master-control-program.service)
 - [service.env.example](../deploy/systemd/service.env.example)

@@ -1,5 +1,10 @@
 # Session handoff — 2026-10-08
 
+> Deployment update, 2026-10-23: the active runtime is now the systemd service on
+> faie.net. See [deployment](deployment.md) for paths, verification and rollback.
+> The local launcher is disabled. Local runtime/deferred deployment statements
+> below are historical and must not be used to restart the old credentials.
+
 ## Current direction
 
 Prepare a public source release for personal, self-hosted use: one owner and one

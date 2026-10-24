@@ -32,8 +32,8 @@ reported healthy/ready during setup; ChatGPT successfully discovered both
 read-only tools, and the user confirmed it sees and describes a real X image
 returned by `fetch_x_media`. The user also confirmed an accessible generated
 image passes through `inspect_chatgpt_image` and returns visible image content.
-The tunnel is currently a local test runtime, not a boot-persistent deployment.
-A [sample systemd service](docs/deployment.md) is provided for deployment after launch.
+The personal tunnel runs on faie.net as a boot-enabled systemd service.
+See [deployment operations and verification](docs/deployment.md).
 GitHub image retrieval passed live public and private canonical-image checks;
 the user also confirmed hosted ChatGPT upload, fetch-back, and visual inspection. See [GitHub setup](docs/github.md).
 See the [release checklist and backlog](docs/release.md) for launch gates.

@@ -73,3 +73,7 @@ LFS, submodules or binary uploads. Existing GitHub tools remain available.
 Verification: `raco test racket/git-tests.rkt` uses local disposable repositories,
 with no live network calls. The full project check includes this suite. Live HTTPS
 acceptance is a separate disposable-repository check, never a normal test write.
+
+The system service uses explicit paths under `/etc/master-control-program` and
+`/var/lib/master-control-program`; it does not use the interactive user's home
+or the wrapper defaults. See [deployment](deployment.md) for the live settings.
