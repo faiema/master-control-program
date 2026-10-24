@@ -65,6 +65,28 @@ visually inspected. Boot enablement was checked, but the host was not rebooted.
 X refresh/posting and a new signed ChatGPT file download were not exercised at
 cutover. No test posts or repository writes were made.
 
+### Update verification — 2026-10-24
+
+`main` on the faie remote and GitHub now includes the Git feature and preserved
+deployment notes. Both source checkouts were clean after the fast-forward.
+The full check passed: 105 Racket tests and 12 independent Python tests, no skips.
+Under `mcp-x`, MCP discovery listed all ten tools, including `git_repository`
+with the configured read/write actions; an authenticated `status` call cloned
+`master-control-program.git` and reported a clean `main` at the deployed commit.
+No live Git writes were used for acceptance.
+
+The restarted service was enabled, live and ready, with successful control-plane
+polling. A connected image fetch through the restarted tunnel returned the
+288×288 Racket logo and verified its blob SHA. The tunnel observed initialization
+and successful request delivery. stdout/stderr now point to the journal socket,
+and service records are retained. The LXC override is also preserved in
+`deploy/systemd/journald-lxc.conf`; install it only on hosts with the same
+credential-mount limitation. No reboot or live X refresh/post was tested.
+
+The current ChatGPT connector catalog still predates the Git tool. Refresh its
+tool discovery to expose `git_repository` in ChatGPT; service-account discovery
+and a connected image call do not establish that the hosted catalog has refreshed.
+
 For rollback, stop this service first and transfer its latest token and complete
 journal securely before starting any replacement. Do not reuse pre-migration
 state after the new service has handled requests.
